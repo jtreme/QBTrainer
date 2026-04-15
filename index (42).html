@@ -1,0 +1,867 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Quiz Bowl Trainer</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏆</text></svg>">
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#bfdbfe;color:#1a202c;font-family:'Outfit',sans-serif;min-height:100vh;-webkit-tap-highlight-color:transparent;font-size:18px}
+button{cursor:pointer;border:none;font-family:inherit;transition:all .15s}
+button:active{transform:scale(.97)}
+input,select,textarea{font-family:inherit;-webkit-appearance:none}
+.m{font-family:'JetBrains Mono',monospace}
+.inp{width:100%;padding:14px 16px;border-radius:10px;border:2px solid #93c5fd;background:#ffffff;color:#1a202c;font-size:18px}
+@keyframes fu{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+.fu{animation:fu .3s ease-out both}
+@keyframes fr{from{transform:rotateX(90deg);opacity:0}to{transform:none;opacity:1}}
+.fr{animation:fr .35s ease-out both}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/htm@3.1.1/dist/htm.js"></script>
+<script>
+if(typeof htm==="undefined"){document.getElementById("root").innerHTML='<div style="color:#2563eb;padding:40px;text-align:center;font-family:sans-serif"><h2>Loading issue</h2><p>Please refresh the page. If this persists, try a different browser.</p></div>';}
+const h=React.createElement;
+const html=htm.bind(h);
+const{useState,useEffect,useRef,useCallback}=React;
+
+// ═══ FIREBASE ═══
+firebase.initializeApp({apiKey:"AIzaSyCZ8gMn3BYM-sCHZyoOpd8ezT5mYlePX30",authDomain:"quiz-bowl-trainer.firebaseapp.com",databaseURL:"https://quiz-bowl-trainer-default-rtdb.firebaseio.com",projectId:"quiz-bowl-trainer",storageBucket:"quiz-bowl-trainer.firebasestorage.app",messagingSenderId:"527588997660",appId:"1:527588997660:web:9b00faa0997ef4c37cbdd9"});
+const db=firebase.database();
+const fbSet=(p,d)=>db.ref(p).set(d).catch(e=>console.error(e));
+
+// ═══ LOCAL ═══
+const ld=(k,f)=>{try{const v=localStorage.getItem("qbt_"+k);return v?JSON.parse(v):f}catch{return f}};
+const sv=(k,d)=>{try{localStorage.setItem("qbt_"+k,JSON.stringify(d))}catch{}};
+
+// ═══ DATA ═══
+const CATS=["Microeconomics","Macroeconomics","Agribusiness/Finance","Resource/Policy","Quantitative","Marketing","Management","Potpourri"];
+const CC={"Microeconomics":"#2563eb","Macroeconomics":"#3b82f6","Agribusiness/Finance":"#10b981","Resource/Policy":"#a855f7","Quantitative":"#ef4444","Marketing":"#ec4899","Management":"#06b6d4","Potpourri":"#f97316"};
+
+const TRAIN=[
+// ══ MICRO (from all rounds) ══
+{id:"r1",cat:"Microeconomics",pts:5,type:"buzzer",q:"What measures how a firm transforms inputs into output?",a:"Production function"},
+{id:"r2",cat:"Microeconomics",pts:10,type:"buzzer",q:"At what point on a linear demand curve does demand switch from elastic to inelastic?",a:"The midpoint"},
+{id:"r3",cat:"Microeconomics",pts:15,type:"buzzer",q:"Suppose you give up 10 units of food for 1 shelter. Price of food=10, shelter=50. At optimum?",a:"No — MRS ≠ price ratio"},
+{id:"r4",cat:"Microeconomics",pts:25,type:"mc",q:"For an increasing cost industry, the long-run supply curve has ____ elasticity.",a:"C",options:["Infinite","Negative","Positive","Zero"]},
+{id:"r5",cat:"Microeconomics",pts:5,type:"buzzer",q:"What is a firm's shut-down price equal to?",a:"Minimum AVC"},
+{id:"r6",cat:"Microeconomics",pts:20,type:"mc",q:"If a decrease in price of good Y causes less X bought, X and Y are:",a:"A",options:["Substitutes","Complements","Neither","None of the above"]},
+{id:"r7",cat:"Microeconomics",pts:25,type:"mc",q:"Chamberlin's monopolistic competition model assumes:",a:"B",options:["Homogeneous products","Ease of entry and exit","Horizontal demand curve","All of the above"]},
+{id:"r8",cat:"Microeconomics",pts:5,type:"mc",q:"Which CANNOT shift the demand curve?",a:"B",options:["Change in income","Change in price of the good","Change in price of a complement","All of the above"]},
+{id:"r9",cat:"Microeconomics",pts:10,type:"mc",q:"If an input is owned and used by the firm, its ________ cost is zero.",a:"A",options:["Explicit","Implicit","Opportunity","Economic"]},
+{id:"r10",cat:"Microeconomics",pts:20,type:"buzzer",q:"If all firms have identical costs and market demand at min ATC price is 100 units, each firm produces 5, how many firms?",a:"20"},
+{id:"r11",cat:"Microeconomics",pts:5,type:"buzzer",q:"Opportunity cost of a book if income=$60, books=$10, coffee=$5?",a:"2 coffees"},
+{id:"r12",cat:"Microeconomics",pts:15,type:"mc",q:"Income effect opposite to substitution effect but substitution dominates — the good is:",a:"C",options:["Normal","Giffen","Inferior but not Giffen","Not enough info"]},
+{id:"r13",cat:"Microeconomics",pts:20,type:"buzzer",q:"Firm produces 10 units, P=$25, ATC=$20. Economic profit?",a:"$50"},
+{id:"r14",cat:"Microeconomics",pts:25,type:"mc",q:"Perfect complements — production function classified as:",a:"B",options:["Cobb-Douglas","Leontief","Translog","Constant elasticity"]},
+{id:"r15",cat:"Microeconomics",pts:5,type:"mc",q:"Companies with differentiated goods characterize which market?",a:"B",options:["Perfect competition","Monopolistic competition","Oligopoly","Monopsony"]},
+{id:"r16",cat:"Microeconomics",pts:20,type:"buzzer",q:"AVC of 5 units=$100, AVC of 6 units=$150. MC of 6th unit?",a:"$400"},
+{id:"r17",cat:"Microeconomics",pts:25,type:"mc",q:"Price below ATC but above AVC — firm should:",a:"A",options:["Exit if conditions don't improve long run","Minimize ATC output","Increase output","Use less capital"]},
+{id:"r18",cat:"Microeconomics",pts:10,type:"mc",q:"Monopolistic competition demand curves are:",a:"C",options:["U-shaped","Horizontal","Downward sloping","Vertical"]},
+{id:"r19",cat:"Microeconomics",pts:15,type:"buzzer",q:"Aaron prefers hamburgers to hot dogs to pizza. What assumption concludes he prefers hamburgers to pizza?",a:"Transitivity"},
+{id:"r20",cat:"Microeconomics",pts:5,type:"buzzer",q:"A group of firms acting together to raise price and profit is a(n)?",a:"Cartel"},
+{id:"r21",cat:"Microeconomics",pts:10,type:"buzzer",q:"A rectangular hyperbola demand curve has what elasticity?",a:"Unit elastic"},
+{id:"r22",cat:"Microeconomics",pts:5,type:"fill",q:"Trade-offs exist because wants are unlimited and resources are _______.",a:"scarce"},
+{id:"r23",cat:"Microeconomics",pts:20,type:"mc",q:"In the prisoner's dilemma, each player is ________ regardless of the other's action.",a:"A",options:["Better off confessing","Forced to confess","Better off denying","Forced to deny"]},
+{id:"r24",cat:"Microeconomics",pts:5,type:"mc",q:"A perfectly competitive firm maximizes long-run profits where:",a:"C",options:["LRMC=SRAC","MC>MR","MC=MR","P>MC"]},
+{id:"r25",cat:"Microeconomics",pts:15,type:"buzzer",q:"Point where total product stops increasing at increasing rate and starts increasing at decreasing rate?",a:"Inflection point"},
+{id:"r26",cat:"Microeconomics",pts:20,type:"mc",q:"In long run, monopolistic competition has price equal to:",a:"D",options:["Marginal cost","Marginal revenue","Elasticity of demand","Average total cost"]},
+{id:"r27",cat:"Microeconomics",pts:10,type:"buzzer",q:"A duopoly is a form of what?",a:"Oligopoly"},
+{id:"r28",cat:"Microeconomics",pts:5,type:"buzzer",q:"What is the marginal cost of good Y if you give up 4 units of X?",a:"4 units of X"},
+{id:"r29",cat:"Microeconomics",pts:20,type:"mc",q:"If raising ferry rates increases revenue, elasticity could be:",a:"A",options:["0.5","1.0","1.5","All of the above"]},
+// ══ MACRO (from all rounds) ══
+{id:"r30",cat:"Macroeconomics",pts:5,type:"buzzer",q:"What term describes recurring expansion and contraction in economic activity?",a:"Business cycles"},
+{id:"r31",cat:"Macroeconomics",pts:10,type:"fill",q:"A point inside the PPF is attainable but ________.",a:"inefficient"},
+{id:"r32",cat:"Macroeconomics",pts:15,type:"buzzer",q:"Core inflation excludes which two sectors?",a:"Food and energy"},
+{id:"r33",cat:"Macroeconomics",pts:20,type:"buzzer",q:"Output the economy would produce at full employment?",a:"Potential GDP"},
+{id:"r34",cat:"Macroeconomics",pts:25,type:"mc",q:"When actual GDP exceeds potential GDP:",a:"C",options:["Recessionary gap","Full-employment equilibrium","Inflationary gap","Physical limits equilibrium"]},
+{id:"r35",cat:"Macroeconomics",pts:5,type:"fill",q:"A(n) ________ occurs when employment and output reach lowest levels.",a:"trough"},
+{id:"r36",cat:"Macroeconomics",pts:20,type:"mc",q:"GDP in an open economy:",a:"D",options:["S=I-G","I=Y-C+G","Y=C+I+G","Y=C+I+G+NX"]},
+{id:"r37",cat:"Macroeconomics",pts:5,type:"buzzer",q:"Market value of all final goods and services produced within a nation in a year?",a:"GDP"},
+{id:"r38",cat:"Macroeconomics",pts:10,type:"mc",q:"A tax with the same rate regardless of income is:",a:"B",options:["Regressive","Proportional","Progressive","Optimal"]},
+{id:"r39",cat:"Macroeconomics",pts:25,type:"buzzer",q:"Oil prices spiraling up causing overall price level to rise?",a:"Cost-push inflation"},
+{id:"r40",cat:"Macroeconomics",pts:5,type:"buzzer",q:"Searching for your first job after school — what type of unemployment?",a:"Frictional"},
+{id:"r41",cat:"Macroeconomics",pts:10,type:"mc",q:"Increase in household wealth shifts consumption schedule:",a:"B",options:["Along same curve","Upward","Downward","Steeper"]},
+{id:"r42",cat:"Macroeconomics",pts:20,type:"mc",q:"Okun's Law: 2% GDP increase → unemployment change?",a:"C",options:["4% decrease","4% increase","1% decrease","1% increase"]},
+{id:"r43",cat:"Macroeconomics",pts:25,type:"buzzer",q:"MPC=0.6, $100B tax cut shifts AD right by how much?",a:"$150 billion"},
+{id:"r44",cat:"Macroeconomics",pts:5,type:"buzzer",q:"Command economy with government ownership is also known as?",a:"Socialism/communism"},
+{id:"r45",cat:"Macroeconomics",pts:25,type:"buzzer",q:"Which function of money gives rise to asset demand?",a:"Store of value"},
+{id:"r46",cat:"Macroeconomics",pts:5,type:"mc",q:"NOT part of M1 money supply?",a:"D",options:["Coins","Paper currency","Checkable deposits","Time deposits (CDs)"]},
+{id:"r47",cat:"Macroeconomics",pts:25,type:"buzzer",q:"Bank has $1M checkable deposits, 5% reserve ratio, $5K excess reserves. Actual reserves?",a:"$55,000"},
+{id:"r48",cat:"Macroeconomics",pts:10,type:"mc",q:"Fed Board of Governors vacancy filled by:",a:"D",options:["Remaining Board","Congress","Bank presidents","The President"]},
+{id:"r49",cat:"Macroeconomics",pts:15,type:"buzzer",q:"150M working-age, 90M in labor force. Participation rate?",a:"60%"},
+{id:"r50",cat:"Macroeconomics",pts:5,type:"fill",q:"Policy using government spending and taxes to affect economy is ________ policy.",a:"fiscal"},
+{id:"r51",cat:"Macroeconomics",pts:15,type:"buzzer",q:"Real GDP rises $500B→$540B, population 400M→450M. Per capita GDP change?",a:"Decreases by $50"},
+{id:"r52",cat:"Macroeconomics",pts:25,type:"buzzer",q:"If productivity increases, SRAS shifts which direction?",a:"Right"},
+{id:"r53",cat:"Macroeconomics",pts:5,type:"buzzer",q:"If MPS=0.60, what is MPC?",a:"0.40"},
+{id:"r54",cat:"Macroeconomics",pts:10,type:"mc",q:"Which asset is NOT money?",a:"D",options:["Currency","Checkable deposits","Coins","Bonds"]},
+{id:"r55",cat:"Macroeconomics",pts:15,type:"buzzer",q:"Interest rate charged when banks borrow from the Fed?",a:"Discount rate"},
+{id:"r56",cat:"Macroeconomics",pts:5,type:"buzzer",q:"In recession, tax receipts _____ and unemployment payments _____.",a:"Decrease; increase"},
+{id:"r57",cat:"Macroeconomics",pts:10,type:"buzzer",q:"Education and knowledge embodied in workforce?",a:"Human capital"},
+// ══ AGRIBUSINESS/FINANCE (from all rounds) ══
+{id:"r58",cat:"Agribusiness/Finance",pts:5,type:"buzzer",q:"Contract giving right (not obligation) to buy/sell at fixed price?",a:"Option"},
+{id:"r59",cat:"Agribusiness/Finance",pts:10,type:"mc",q:"Which is an asset?",a:"A",options:["Accounts receivable","Accounts payable","Common stock","Dividends"]},
+{id:"r60",cat:"Agribusiness/Finance",pts:15,type:"mc",q:"Which is a liquidity ratio?",a:"C",options:["Return on assets","Fixed asset turnover","Cash ratio","Times interest earned"]},
+{id:"r61",cat:"Agribusiness/Finance",pts:20,type:"buzzer",q:"Ratios measuring speed accounts convert to sales/cash?",a:"Activity ratios"},
+{id:"r62",cat:"Agribusiness/Finance",pts:25,type:"buzzer",q:"Income items as % of sales, balance items as % of assets?",a:"Common-size analysis"},
+{id:"r63",cat:"Agribusiness/Finance",pts:5,type:"buzzer",q:"Price to trade one currency for another?",a:"Exchange rate"},
+{id:"r64",cat:"Agribusiness/Finance",pts:10,type:"buzzer",q:"Main revenue-generating asset for banks?",a:"Loans"},
+{id:"r65",cat:"Agribusiness/Finance",pts:15,type:"buzzer",q:"Legally binding agreement to sell asset at specified price/date?",a:"Forward contract"},
+{id:"r66",cat:"Agribusiness/Finance",pts:20,type:"buzzer",q:"Five Cs: assessing if management is trustworthy?",a:"Character"},
+{id:"r67",cat:"Agribusiness/Finance",pts:25,type:"fill",q:"In a call option, the buy price is the ________ price.",a:"exercise"},
+{id:"r68",cat:"Agribusiness/Finance",pts:5,type:"buzzer",q:"Deposit insurance regulatory body?",a:"FDIC"},
+{id:"r69",cat:"Agribusiness/Finance",pts:10,type:"buzzer",q:"Statement of financial position?",a:"Balance sheet"},
+{id:"r70",cat:"Agribusiness/Finance",pts:15,type:"buzzer",q:"Employer retirement plan where employee chooses investments?",a:"401(k)"},
+{id:"r71",cat:"Agribusiness/Finance",pts:5,type:"buzzer",q:"Time for a project to recover initial investment?",a:"Payback period"},
+{id:"r72",cat:"Agribusiness/Finance",pts:10,type:"fill",q:"Risk that a bond issuer won't pay back on time = ________ risk.",a:"default"},
+{id:"r73",cat:"Agribusiness/Finance",pts:20,type:"buzzer",q:"Bank making varied loans to various borrowers hopes to benefit from?",a:"Diversification"},
+{id:"r74",cat:"Agribusiness/Finance",pts:25,type:"mc",q:"Securities up to 1 year maturity trade in the ________ market.",a:"D",options:["Primary","Secondary","Capital","Money"]},
+{id:"r75",cat:"Agribusiness/Finance",pts:5,type:"buzzer",q:"Quick/acid-test ratio relates what to current liabilities?",a:"Cash, short-term investments, net receivables"},
+{id:"r76",cat:"Agribusiness/Finance",pts:15,type:"buzzer",q:"Two basic types of corporate stock?",a:"Common and preferred"},
+{id:"r77",cat:"Agribusiness/Finance",pts:5,type:"buzzer",q:"Rule of 72: how long to double money at 6%?",a:"12 years"},
+{id:"r78",cat:"Agribusiness/Finance",pts:20,type:"mc",q:"Exclude from project cash flows?",a:"A",options:["Sunk costs","Taxes","Salvage value","Erosion effects"]},
+{id:"r79",cat:"Agribusiness/Finance",pts:5,type:"fill",q:"Food wholesaler buying a grocery store = ________ acquisition.",a:"vertical"},
+{id:"r80",cat:"Agribusiness/Finance",pts:10,type:"buzzer",q:"Board issues more shares without diluting value?",a:"Stock split"},
+{id:"r81",cat:"Agribusiness/Finance",pts:25,type:"buzzer",q:"AP=54 days, inventory=69 days, AR=37 days. Cash cycle?",a:"52 days"},
+{id:"r82",cat:"Agribusiness/Finance",pts:5,type:"buzzer",q:"Money already spent regardless of project decision?",a:"Sunk costs"},
+{id:"r83",cat:"Agribusiness/Finance",pts:25,type:"buzzer",q:"Discount rate making NPV = 0?",a:"Internal rate of return (IRR)"},
+{id:"r84",cat:"Agribusiness/Finance",pts:5,type:"buzzer",q:"Who sets a company's dividend?",a:"Board of directors"},
+{id:"r85",cat:"Agribusiness/Finance",pts:10,type:"buzzer",q:"Selling shares of a company that went public 3 years ago — what market?",a:"Secondary market"},
+{id:"r86",cat:"Agribusiness/Finance",pts:15,type:"mc",q:"Generally, IPOs are:",a:"C",options:["Correctly priced","Overpriced","Underpriced","Indeterminate"]},
+{id:"r87",cat:"Agribusiness/Finance",pts:20,type:"buzzer",q:"Project requires $10M, NPV=$16M. Profitability index?",a:"1.6"},
+{id:"r88",cat:"Agribusiness/Finance",pts:5,type:"buzzer",q:"Difference between net income and dividends paid?",a:"Retained earnings"},
+{id:"r89",cat:"Agribusiness/Finance",pts:10,type:"mc",q:"Five Cs: assets offered as loan security?",a:"D",options:["Character","Capacity","Capital","Collateral"]},
+{id:"r90",cat:"Agribusiness/Finance",pts:20,type:"mc",q:"Capital budgeting method with value additive property?",a:"A",options:["NPV","IRR","Payback","Discounted payback"]},
+// ══ RESOURCE/POLICY (from all rounds) ══
+{id:"r91",cat:"Resource/Policy",pts:5,type:"fill",q:"Cost/benefit imposed on third parties = a(n) __________.",a:"externality"},
+{id:"r92",cat:"Resource/Policy",pts:10,type:"mc",q:"Economic rent equals which concept?",a:"A",options:["Producer surplus","Consumer surplus","Economic profit","VMP"]},
+{id:"r93",cat:"Resource/Policy",pts:15,type:"buzzer",q:"Pollution from diffuse, untraceable sources?",a:"Nonpoint source pollution"},
+{id:"r94",cat:"Resource/Policy",pts:20,type:"buzzer",q:"MSC > MPC for fertilizer — market produces too much or too little?",a:"Too much"},
+{id:"r95",cat:"Resource/Policy",pts:25,type:"buzzer",q:"Two citizens: P=20-2Q each, MC=20. How much public good?",a:"5 units"},
+{id:"r96",cat:"Resource/Policy",pts:5,type:"fill",q:"Marginal ________ cost = what consumer pays for one more unit.",a:"private"},
+{id:"r97",cat:"Resource/Policy",pts:10,type:"mc",q:"Without accounting for external costs, firms produce ________ efficient level.",a:"C",options:["At","Below","Above","Either"]},
+{id:"r98",cat:"Resource/Policy",pts:25,type:"buzzer",q:"To internalize externalities: ________ negative, ________ positive.",a:"Tax; subsidize"},
+{id:"r99",cat:"Resource/Policy",pts:5,type:"buzzer",q:"Removing government price/quantity controls?",a:"Deregulation"},
+{id:"r100",cat:"Resource/Policy",pts:15,type:"buzzer",q:"Economists favor competitive markets over command systems because of?",a:"Efficiency"},
+{id:"r101",cat:"Resource/Policy",pts:5,type:"buzzer",q:"Exhaustion of collectively owned resources?",a:"Tragedy of the Commons"},
+{id:"r102",cat:"Resource/Policy",pts:10,type:"buzzer",q:"Exclusive right granted to author/composer of artistic work?",a:"Copyright"},
+{id:"r103",cat:"Resource/Policy",pts:15,type:"buzzer",q:"Price ceiling of $1 when equilibrium is higher, Qd exceeds Qs by 6B gallons?",a:"Shortage of 6 billion gallons"},
+{id:"r104",cat:"Resource/Policy",pts:20,type:"fill",q:"Tax equal to marginal damages makes firm's MC = marginal ________ cost.",a:"social"},
+{id:"r105",cat:"Resource/Policy",pts:5,type:"fill",q:"________ ________ define ownership of resources and how they can be used.",a:"Property rights"},
+{id:"r106",cat:"Resource/Policy",pts:10,type:"mc",q:"Means of coping with negative externality?",a:"B",options:["Emission subsidies","Pigovian taxes","Vouchers","Patents"]},
+{id:"r107",cat:"Resource/Policy",pts:5,type:"buzzer",q:"Why are public goods hard for private markets to provide?",a:"Free rider problem"},
+{id:"r108",cat:"Resource/Policy",pts:10,type:"buzzer",q:"One person's consumption diminishes others' use — good is?",a:"Rival"},
+{id:"r109",cat:"Resource/Policy",pts:20,type:"mc",q:"Public good where exclusion IS possible?",a:"B",options:["Impure good","Club good","Exclusive good","Common good"]},
+{id:"r110",cat:"Resource/Policy",pts:5,type:"buzzer",q:"In a market economy, activity is guided by?",a:"Prices"},
+{id:"r111",cat:"Resource/Policy",pts:20,type:"buzzer",q:"A subsidy is really just a ________ tax.",a:"Negative"},
+{id:"r112",cat:"Resource/Policy",pts:5,type:"mc",q:"Limiting pollution to 10,000 units is a:",a:"A",options:["Regulation","Pigovian tax","Subsidy","Market-based policy"]},
+{id:"r113",cat:"Resource/Policy",pts:10,type:"buzzer",q:"Costs of negotiating and enforcing private solutions?",a:"Transaction costs"},
+{id:"r114",cat:"Resource/Policy",pts:15,type:"buzzer",q:"Technology spillover is a type of?",a:"Positive externality"},
+{id:"r115",cat:"Resource/Policy",pts:20,type:"buzzer",q:"Private market can deal with externalities through bargaining?",a:"Coase theorem"},
+// ══ QUANTITATIVE (from all rounds) ══
+{id:"r116",cat:"Quantitative",pts:5,type:"fill",q:"The ________ function: max output per unit time for every input combo.",a:"production"},
+{id:"r117",cat:"Quantitative",pts:10,type:"buzzer",q:"MPL=50, MPK=100. MRTS of capital for labor?",a:"2"},
+{id:"r118",cat:"Quantitative",pts:15,type:"buzzer",q:"ATC=50, Q=10, TFC=100. TVC?",a:"400"},
+{id:"r119",cat:"Quantitative",pts:20,type:"buzzer",q:"Income $10K→$15K, consumption $9K→$12K. MPC?",a:"0.6"},
+{id:"r120",cat:"Quantitative",pts:25,type:"buzzer",q:"k=0.2, money supply=$1,000. Nominal GDP?",a:"$5,000"},
+{id:"r121",cat:"Quantitative",pts:5,type:"buzzer",q:"AFC=$6, TVC=$400, Q=100. Total cost?",a:"$1,000"},
+{id:"r122",cat:"Quantitative",pts:10,type:"buzzer",q:"TC(Q)=5+Q. ATC expression?",a:"(5/Q)+1"},
+{id:"r123",cat:"Quantitative",pts:15,type:"buzzer",q:"Price $20→$18, frames 24→33. Revenue rises, so demand is?",a:"Elastic"},
+{id:"r124",cat:"Quantitative",pts:20,type:"buzzer",q:"Q=4KL. MPK when L=4?",a:"16"},
+{id:"r125",cat:"Quantitative",pts:25,type:"fill",q:"Calculus derivative corresponds to ________ value in economics.",a:"marginal"},
+{id:"r126",cat:"Quantitative",pts:5,type:"buzzer",q:"Opportunity cost of 1 hour leisure if wage=$10/hr?",a:"$10"},
+{id:"r127",cat:"Quantitative",pts:10,type:"mc",q:"Variable for qualitative info in regression?",a:"D",options:["Dependent","Continuous","Binomial","Dummy"]},
+{id:"r128",cat:"Quantitative",pts:15,type:"buzzer",q:"Price and total revenue directly related when demand is?",a:"Inelastic"},
+{id:"r129",cat:"Quantitative",pts:20,type:"buzzer",q:"Hurricane probability 0.1/year. Expected hits in 90 years?",a:"9"},
+{id:"r130",cat:"Quantitative",pts:25,type:"buzzer",q:"Birth/death/growth rates across countries over 10 years = what data?",a:"Panel data"},
+{id:"r131",cat:"Quantitative",pts:5,type:"buzzer",q:"Forecasts based only on past values?",a:"Naïve forecasts"},
+{id:"r132",cat:"Quantitative",pts:10,type:"buzzer",q:"Income declines → demand for ________ goods increases.",a:"Inferior"},
+{id:"r133",cat:"Quantitative",pts:15,type:"buzzer",q:"PB quantity +4% when jelly price -2%. Cross-price elasticity?",a:"-2"},
+{id:"r134",cat:"Quantitative",pts:25,type:"buzzer",q:"Inflection point on TC curve = where ________ cost is at minimum.",a:"Marginal"},
+{id:"r135",cat:"Quantitative",pts:5,type:"buzzer",q:"Repeating annual pattern in time series?",a:"Seasonal variation"},
+{id:"r136",cat:"Quantitative",pts:15,type:"buzzer",q:"Monopoly sells 10 at $45, must drop to $44 for 11th. MR?",a:"$34"},
+{id:"r137",cat:"Quantitative",pts:25,type:"mc",q:"Price $10→$12, elasticity -0.5, Q was 500. Now?",a:"C",options:["550","500","450","490"]},
+{id:"r138",cat:"Quantitative",pts:10,type:"buzzer",q:"TC=50+2q. Average cost of 5th T-shirt?",a:"$12"},
+{id:"r139",cat:"Quantitative",pts:20,type:"mc",q:"q=L^α×K^β, LRAC horizontal when:",a:"B",options:["α+β=0","α+β=1","q>0","L=K"]},
+{id:"r140",cat:"Quantitative",pts:5,type:"buzzer",q:"VC for 1 unit=$3, 2 units=$6. MC of 2nd?",a:"$3"},
+{id:"r141",cat:"Quantitative",pts:15,type:"buzzer",q:"CPI 1.60 in 2020, 1.80 in 2021. Inflation rate?",a:"12.5%"},
+{id:"r142",cat:"Quantitative",pts:20,type:"buzzer",q:"TC=100q+100q². AC function? Returns to scale?",a:"AC=100+100q; decreasing returns"},
+{id:"r143",cat:"Quantitative",pts:25,type:"buzzer",q:"At $11 Q=90, at $9 Q=110. TR unchanged, demand is?",a:"Unit elastic"},
+{id:"r144",cat:"Quantitative",pts:5,type:"buzzer",q:"Real GDP per capita growth -2.3% means standard of living is?",a:"Deteriorating"},
+{id:"r145",cat:"Quantitative",pts:10,type:"mc",q:"TC=10+5Q. AVC?",a:"B",options:["10","5","(10/Q)+5","10+(5/Q)"]},
+{id:"r146",cat:"Quantitative",pts:15,type:"buzzer",q:"Q=10K^0.6×L^0.8. Returns to scale?",a:"Increasing (0.6+0.8=1.4>1)"},
+{id:"r147",cat:"Quantitative",pts:25,type:"buzzer",q:"Money supply +3%, velocity +4%, real GDP +2%. Price level change?",a:"+5%"},
+// ══ MARKETING (from all rounds) ══
+{id:"r148",cat:"Marketing",pts:5,type:"buzzer",q:"Undifferentiated marketing = ?",a:"Mass marketing"},
+{id:"r149",cat:"Marketing",pts:10,type:"mc",q:"Lifestyle is which segmentation variable?",a:"A",options:["Psychographic","Demographic","Usage","Behavioral"]},
+{id:"r150",cat:"Marketing",pts:15,type:"fill",q:"Logo + packaging + color scheme = brand __________.",a:"identity"},
+{id:"r151",cat:"Marketing",pts:20,type:"buzzer",q:"Pull strategy aimed at?",a:"Consumers"},
+{id:"r152",cat:"Marketing",pts:25,type:"buzzer",q:"4th traditional promotional mix technique besides advertising, PR, sales promotion?",a:"Personal selling"},
+{id:"r153",cat:"Marketing",pts:10,type:"buzzer",q:"Positioning refers to how __________ think about brands.",a:"Customers"},
+{id:"r154",cat:"Marketing",pts:15,type:"buzzer",q:"Utility from right to use/consume a good?",a:"Possession utility"},
+{id:"r155",cat:"Marketing",pts:20,type:"buzzer",q:"Product's route through supply chain?",a:"Distribution channel"},
+{id:"r156",cat:"Marketing",pts:25,type:"buzzer",q:"'Silent salesman' in marketing communications?",a:"Packaging"},
+{id:"r157",cat:"Marketing",pts:5,type:"buzzer",q:"Set of beliefs/attitudes of a homogeneous group?",a:"Culture"},
+{id:"r158",cat:"Marketing",pts:10,type:"buzzer",q:"Set of closely related individual products?",a:"Product line"},
+{id:"r159",cat:"Marketing",pts:15,type:"buzzer",q:"Industry profits decline near end of which PLC stage?",a:"Growth"},
+{id:"r160",cat:"Marketing",pts:20,type:"buzzer",q:"Low initial price for large market share?",a:"Market penetration pricing"},
+{id:"r161",cat:"Marketing",pts:5,type:"fill",q:"Localizing products for local markets = __________ segmentation.",a:"geographic"},
+{id:"r162",cat:"Marketing",pts:10,type:"buzzer",q:"Paid non-personal presentation by identified sponsor?",a:"Advertising"},
+{id:"r163",cat:"Marketing",pts:15,type:"buzzer",q:"Controllable variables to satisfy a target group?",a:"Marketing mix"},
+{id:"r164",cat:"Marketing",pts:25,type:"buzzer",q:"Manager directing whole channel to avoid conflicts?",a:"Channel captain"},
+{id:"r165",cat:"Marketing",pts:5,type:"buzzer",q:"Major factor differentiating service from product?",a:"Intangibility"},
+{id:"r166",cat:"Marketing",pts:15,type:"buzzer",q:"Penetration pricing used in which PLC stage?",a:"Introduction"},
+{id:"r167",cat:"Marketing",pts:20,type:"buzzer",q:"Successful brand name launching new category product?",a:"Brand extension"},
+{id:"r168",cat:"Marketing",pts:5,type:"buzzer",q:"Zone pricing charges all customers in an area what?",a:"A single total price based on distance"},
+{id:"r169",cat:"Marketing",pts:15,type:"buzzer",q:"Profits usually peak during which PLC stage?",a:"Maturity"},
+{id:"r170",cat:"Marketing",pts:20,type:"buzzer",q:"When consumers can't judge quality, what becomes a quality signal?",a:"Price"},
+{id:"r171",cat:"Marketing",pts:25,type:"buzzer",q:"Shopper with a price in mind while shopping uses?",a:"Reference price"},
+{id:"r172",cat:"Marketing",pts:10,type:"buzzer",q:"% of selling price added to cost?",a:"Markup"},
+{id:"r173",cat:"Marketing",pts:5,type:"buzzer",q:"3/10 net 30: deduct ___% if paid within ___ days.",a:"3%; 10 days"},
+{id:"r174",cat:"Marketing",pts:10,type:"buzzer",q:"All product lines and items a seller offers?",a:"Product mix"},
+{id:"r175",cat:"Marketing",pts:25,type:"buzzer",q:"High premium price, intending to lower later?",a:"Price skimming"},
+{id:"r176",cat:"Marketing",pts:25,type:"fill",q:"Intensive, exclusive, and __________ are three distribution strategies.",a:"selective"},
+// ══ MANAGEMENT (from all rounds) ══
+{id:"r177",cat:"Management",pts:5,type:"mc",q:"360-degree evaluation — who rates?",a:"D",options:["Colleagues","Direct reports","Superiors","All of the above"]},
+{id:"r178",cat:"Management",pts:10,type:"buzzer",q:"Monitoring quality 'up to standard' = which function?",a:"Controlling"},
+{id:"r179",cat:"Management",pts:15,type:"buzzer",q:"Attracting, recruiting, retaining employees?",a:"Human resource management"},
+{id:"r180",cat:"Management",pts:20,type:"fill",q:"Acceptable shared group behaviors = __________.",a:"norms"},
+{id:"r181",cat:"Management",pts:25,type:"mc",q:"Guiding principle of scientific management?",a:"D",options:["Experimentation","Fluid relationships","Freedom of association","One best way"]},
+{id:"r182",cat:"Management",pts:10,type:"buzzer",q:"SWOT internal elements?",a:"Strengths and weaknesses"},
+{id:"r183",cat:"Management",pts:15,type:"mc",q:"Freedom to schedule work = ?",a:"B",options:["Job design","Job enrichment","Job rate","Job planning"]},
+{id:"r184",cat:"Management",pts:20,type:"buzzer",q:"Sub-optimal but acceptable negotiation outcome?",a:"Satisficing"},
+{id:"r185",cat:"Management",pts:5,type:"buzzer",q:"Corporate manager operates at what level?",a:"Top level"},
+{id:"r186",cat:"Management",pts:10,type:"buzzer",q:"Guiding subordinates toward goals?",a:"Directing"},
+{id:"r187",cat:"Management",pts:15,type:"buzzer",q:"Standard of excellence to measure against?",a:"Benchmark"},
+{id:"r188",cat:"Management",pts:20,type:"mc",q:"Small incremental quality improvements?",a:"D",options:["JIT","Six Sigma","TQM","Kaizen"]},
+{id:"r189",cat:"Management",pts:25,type:"buzzer",q:"Increased commitment to a wrong decision?",a:"Escalation of commitment"},
+{id:"r190",cat:"Management",pts:5,type:"mc",q:"Lower-level managers face what decision type?",a:"B",options:["Nonroutine","Programmed","Unique","Unprogrammed"]},
+{id:"r191",cat:"Management",pts:10,type:"buzzer",q:"Power retained at the top?",a:"Centralization"},
+{id:"r192",cat:"Management",pts:15,type:"buzzer",q:"Regional manager, project leader = what level?",a:"Middle managers"},
+{id:"r193",cat:"Management",pts:20,type:"buzzer",q:"Values, traits, characteristics leading to superior performance?",a:"Competencies"},
+{id:"r194",cat:"Management",pts:5,type:"buzzer",q:"First and foremost management function?",a:"Planning"},
+{id:"r195",cat:"Management",pts:10,type:"buzzer",q:"Few subordinates = what span?",a:"Narrow"},
+{id:"r196",cat:"Management",pts:15,type:"buzzer",q:"Fayol: employees receive orders from one superior only?",a:"Unity of command"},
+{id:"r197",cat:"Management",pts:20,type:"buzzer",q:"Dividing large org into small flexible units?",a:"Departmentalization"},
+{id:"r198",cat:"Management",pts:5,type:"mc",q:"NOT a way to departmentalize?",a:"B",options:["By function","By employee","By process","By product"]},
+{id:"r199",cat:"Management",pts:10,type:"buzzer",q:"Influencing people to strive toward organizational goals?",a:"Leadership"},
+{id:"r200",cat:"Management",pts:15,type:"buzzer",q:"Long-term plan = __________ plan.",a:"Strategic"},
+{id:"r201",cat:"Management",pts:5,type:"mc",q:"Employee behavior (not trait)?",a:"C",options:["Sensitivity","Conscientiousness","Quantity of work","Loyalty"]},
+{id:"r202",cat:"Management",pts:10,type:"buzzer",q:"Temporary interdepartmental group for a specific issue?",a:"Task force"},
+{id:"r203",cat:"Management",pts:20,type:"fill",q:"Job _________ = assigning additional same-level activities.",a:"enlargement"},
+{id:"r204",cat:"Management",pts:25,type:"buzzer",q:"'Rule of thumb' bias in decision making?",a:"Heuristics"},
+{id:"r205",cat:"Management",pts:5,type:"fill",q:"Job ________ = systematically moving workers between jobs.",a:"rotation"},
+{id:"r206",cat:"Management",pts:10,type:"buzzer",q:"Right to give instructions to subordinates?",a:"Authority"},
+{id:"r207",cat:"Management",pts:15,type:"buzzer",q:"Power from status/position?",a:"Legitimate power"},
+{id:"r208",cat:"Management",pts:25,type:"mc",q:"In Herzberg's theory, NOT a motivator?",a:"C",options:["Achievement","Challenge","Physical work conditions","Recognition"]},
+{id:"r209",cat:"Management",pts:10,type:"buzzer",q:"Combining assets/skills to outperform competitors?",a:"Competitive advantage"},
+{id:"r210",cat:"Management",pts:20,type:"buzzer",q:"Beliefs/traits attributed to a whole group?",a:"Stereotypes"},
+{id:"r211",cat:"Management",pts:25,type:"buzzer",q:"Where was TQM first developed?",a:"Japan"},
+// ══ POTPOURRI (from all rounds) ══
+{id:"r212",cat:"Potpourri",pts:5,type:"buzzer",q:"Georgia leads in what row crop?",a:"Peanuts"},
+{id:"r213",cat:"Potpourri",pts:10,type:"buzzer",q:"NIMBY stands for?",a:"Not In My Backyard"},
+{id:"r214",cat:"Potpourri",pts:15,type:"buzzer",q:"9-letter word: buying in one market, selling in another for profit?",a:"Arbitrage"},
+{id:"r215",cat:"Potpourri",pts:20,type:"buzzer",q:"3rd largest GDP after US and China?",a:"Japan"},
+{id:"r216",cat:"Potpourri",pts:25,type:"fill",q:"Neighbor feels poorer when you buy a car = __________ externality.",a:"positional"},
+{id:"r217",cat:"Potpourri",pts:5,type:"buzzer",q:"How many Federal Reserve banks?",a:"12"},
+{id:"r218",cat:"Potpourri",pts:10,type:"buzzer",q:"Video game character originally called Jumpman?",a:"Mario"},
+{id:"r219",cat:"Potpourri",pts:25,type:"buzzer",q:"Total value of outstanding shares = ?",a:"Market capitalization"},
+{id:"r220",cat:"Potpourri",pts:5,type:"buzzer",q:"Money without inherent value, legal tender by decree?",a:"Fiat money"},
+{id:"r221",cat:"Potpourri",pts:10,type:"buzzer",q:"Sellers colluding on prices?",a:"Price-fixing"},
+{id:"r222",cat:"Potpourri",pts:15,type:"buzzer",q:"Family and Consumer Sciences was originally called?",a:"Home Economics"},
+{id:"r223",cat:"Potpourri",pts:20,type:"buzzer",q:"Chinese gooseberry is what fruit?",a:"Kiwi"},
+{id:"r224",cat:"Potpourri",pts:25,type:"buzzer",q:"Veblen's term for buying expensive things to display wealth?",a:"Conspicuous consumption"},
+{id:"r225",cat:"Potpourri",pts:5,type:"buzzer",q:"French term for minimal government interference in markets?",a:"Laissez-faire"},
+{id:"r226",cat:"Potpourri",pts:10,type:"buzzer",q:"Poorest country in western hemisphere?",a:"Haiti"},
+{id:"r227",cat:"Potpourri",pts:15,type:"buzzer",q:"Three fundamental factors of production?",a:"Land, labor, capital"},
+{id:"r228",cat:"Potpourri",pts:20,type:"mc",q:"NDP = GDP minus?",a:"D",options:["Transfer payments","Indirect taxes","Subsidies","Depreciation"]},
+{id:"r229",cat:"Potpourri",pts:25,type:"buzzer",q:"Migrant worker money sent to family back home?",a:"Remittances"},
+{id:"r230",cat:"Potpourri",pts:5,type:"buzzer",q:"Stock market down 20%+ from recent high = ________ market.",a:"Bear"},
+{id:"r231",cat:"Potpourri",pts:15,type:"buzzer",q:"Science of designing things for efficient human interaction?",a:"Ergonomics"},
+{id:"r232",cat:"Potpourri",pts:20,type:"buzzer",q:"Malthusian Trap: tech gains offset by increases in?",a:"Population"},
+{id:"r233",cat:"Potpourri",pts:25,type:"buzzer",q:"Commodity valued more in spot market than futures?",a:"Backwardation"},
+{id:"r234",cat:"Potpourri",pts:5,type:"buzzer",q:"Largest food company by revenue, based in Switzerland?",a:"Nestlé"},
+{id:"r235",cat:"Potpourri",pts:10,type:"buzzer",q:"PEMDAS stands for?",a:"Parentheses, Exponents, Multiplication, Division, Addition, Subtraction"},
+{id:"r236",cat:"Potpourri",pts:20,type:"buzzer",q:"Ricardo's most important concept?",a:"Comparative advantage"},
+{id:"r237",cat:"Potpourri",pts:25,type:"buzzer",q:"Asset price far above fundamentals?",a:"A bubble"},
+{id:"r238",cat:"Potpourri",pts:5,type:"buzzer",q:"Household appliance originally called Radarange?",a:"Microwave oven"},
+{id:"r239",cat:"Potpourri",pts:20,type:"buzzer",q:"Pomme de terre in French = what vegetable?",a:"Potato"},
+{id:"r240",cat:"Potpourri",pts:25,type:"buzzer",q:"Shock spreading from one economy to others via prices?",a:"Contagion"},
+{id:"r241",cat:"Potpourri",pts:5,type:"buzzer",q:"Ceteris paribus means?",a:"All else equal"},
+{id:"r242",cat:"Potpourri",pts:10,type:"buzzer",q:"~500 lbs = weight of a bale of?",a:"Cotton"},
+{id:"r243",cat:"Potpourri",pts:25,type:"buzzer",q:"Largest art museum and most visited museum in the world?",a:"The Louvre"},
+{id:"r244",cat:"Potpourri",pts:5,type:"buzzer",q:"Who wrote Das Kapital?",a:"Karl Marx"},
+{id:"r245",cat:"Potpourri",pts:10,type:"buzzer",q:"Fast-food chain with most locations worldwide (2023)?",a:"McDonald's"},
+{id:"r246",cat:"Potpourri",pts:15,type:"buzzer",q:"Address of the White House?",a:"1600 Pennsylvania Avenue"},
+{id:"r247",cat:"Potpourri",pts:5,type:"fill",q:"Country producing all own goods, no trade = ________ economy.",a:"closed"},
+{id:"r248",cat:"Potpourri",pts:10,type:"buzzer",q:"Non-native species causing economic/environmental harm?",a:"Invasive"},
+{id:"r249",cat:"Potpourri",pts:15,type:"buzzer",q:"Sherman, Clayton, Robinson-Patman Acts curb formation of?",a:"Monopolies"},
+{id:"r250",cat:"Potpourri",pts:25,type:"buzzer",q:"Protection of species in natural habitat?",a:"In situ conservation"},
+// ══ FAMOUS ECONOMISTS ══
+{id:"e1",cat:"Potpourri",pts:15,type:"buzzer",q:"Who wrote The Wealth of Nations and is considered the father of modern economics?",a:"Adam Smith"},
+{id:"e2",cat:"Potpourri",pts:10,type:"buzzer",q:"Which economist is associated with the 'invisible hand' concept?",a:"Adam Smith"},
+{id:"e3",cat:"Potpourri",pts:20,type:"buzzer",q:"Which economist argued for government intervention during recessions through deficit spending?",a:"John Maynard Keynes"},
+{id:"e4",cat:"Potpourri",pts:15,type:"buzzer",q:"The term 'Keynesian economics' comes from which economist's ideas?",a:"John Maynard Keynes"},
+{id:"e5",cat:"Potpourri",pts:20,type:"buzzer",q:"Which Chicago School economist championed monetarism and free markets, arguing inflation is 'always a monetary phenomenon'?",a:"Milton Friedman"},
+{id:"e6",cat:"Potpourri",pts:15,type:"buzzer",q:"Who wrote Das Kapital and The Communist Manifesto?",a:"Karl Marx"},
+{id:"e7",cat:"Potpourri",pts:10,type:"buzzer",q:"Which economist developed the theory of comparative advantage in international trade?",a:"David Ricardo"},
+{id:"e8",cat:"Potpourri",pts:20,type:"buzzer",q:"Which Austrian economist won the Nobel Prize and argued that central planning could never match the efficiency of free markets?",a:"Friedrich Hayek"},
+{id:"e9",cat:"Potpourri",pts:10,type:"buzzer",q:"Which economist predicted that population growth would outstrip food production, leading to famine?",a:"Thomas Malthus"},
+{id:"e10",cat:"Potpourri",pts:25,type:"buzzer",q:"Which mathematician developed game theory concepts including the Nash Equilibrium?",a:"John Nash"},
+{id:"e11",cat:"Potpourri",pts:20,type:"buzzer",q:"Which economist coined the term 'creative destruction' to describe how innovation drives economic progress?",a:"Joseph Schumpeter"},
+{id:"e12",cat:"Potpourri",pts:15,type:"mc",q:"The 'Malthusian Trap' is associated with which economist?",a:"C",options:["Ricardo","Smith","Malthus","Keynes"]},
+{id:"e13",cat:"Potpourri",pts:25,type:"mc",q:"'The Road to Serfdom' was written by:",a:"B",options:["Friedman","Hayek","Keynes","Marx"]},
+{id:"e14",cat:"Potpourri",pts:10,type:"mc",q:"The labor theory of value is most closely associated with:",a:"D",options:["Smith","Ricardo","Keynes","Marx"]},
+{id:"e15",cat:"Potpourri",pts:20,type:"mc",q:"The permanent income hypothesis was developed by:",a:"A",options:["Milton Friedman","Keynes","Hayek","Schumpeter"]},
+];
+
+// ══ ASSESSMENT BANK ══
+const ASSESS=[
+{id:"sa1",cat:"Macroeconomics",pts:10,type:"mc",q:"Coal miner loses job because economy shifted to renewables:",a:"A",options:["Structural","Frictional","Cyclical","Seasonal"]},
+{id:"sa2",cat:"Macroeconomics",pts:5,type:"buzzer",q:"Unemployment from workers between jobs or searching for first job?",a:"Frictional"},
+{id:"sa3",cat:"Macroeconomics",pts:15,type:"mc",q:"Recession layoffs across industries:",a:"C",options:["Structural","Frictional","Cyclical","Seasonal"]},
+{id:"sa4",cat:"Macroeconomics",pts:10,type:"buzzer",q:"Ski instructor unemployed in summer?",a:"Seasonal unemployment"},
+{id:"sa5",cat:"Macroeconomics",pts:20,type:"buzzer",q:"Natural rate includes which two types?",a:"Frictional and structural"},
+{id:"sa6",cat:"Macroeconomics",pts:15,type:"buzzer",q:"Nominal vs real GDP difference?",a:"Real adjusts for inflation"},
+{id:"sa7",cat:"Macroeconomics",pts:15,type:"mc",q:"Nominal GDP +6%, prices +4%, real GDP?",a:"B",options:["4%","2%","6%","10%"]},
+{id:"sa8",cat:"Macroeconomics",pts:20,type:"buzzer",q:"Nominal GDP $22T, deflator 110, real GDP?",a:"$20 trillion"},
+{id:"sa9",cat:"Quantitative",pts:15,type:"buzzer",q:"Qd=40-2P, Qs=2P. Equilibrium P and Q?",a:"P=10, Q=20"},
+{id:"sa10",cat:"Quantitative",pts:20,type:"buzzer",q:"Qd=100-4P, Qs=20+2P. Equilibrium price?",a:"$13.33"},
+{id:"sa11",cat:"Quantitative",pts:5,type:"buzzer",q:"Type I error?",a:"Rejecting true null hypothesis"},
+{id:"sa12",cat:"Quantitative",pts:10,type:"buzzer",q:"Alpha represents?",a:"Probability of Type I error"},
+{id:"sa13",cat:"Quantitative",pts:5,type:"buzzer",q:"Type II error?",a:"Failing to reject false null hypothesis"},
+{id:"sa14",cat:"Quantitative",pts:5,type:"buzzer",q:"Most frequently occurring value?",a:"Mode"},
+{id:"sa15",cat:"Quantitative",pts:10,type:"buzzer",q:"Median of {3,5,7,9,11,13,15}?",a:"9"},
+{id:"sa16",cat:"Quantitative",pts:15,type:"buzzer",q:"IQR of {2,4,6,8,10,12,14,16}?",a:"8"},
+{id:"sa17",cat:"Quantitative",pts:10,type:"mc",q:"Mean > median means:",a:"B",options:["Negatively skewed","Positively skewed","Symmetric","Bimodal"]},
+{id:"sa18",cat:"Marketing",pts:5,type:"buzzer",q:"The 4 P's?",a:"Product, Price, Place, Promotion"},
+{id:"sa19",cat:"Marketing",pts:10,type:"mc",q:"Low price to gain share quickly:",a:"B",options:["Price skimming","Penetration pricing","Predatory","Premium"]},
+{id:"sa20",cat:"Marketing",pts:15,type:"buzzer",q:"Highest promo costs relative to sales stage?",a:"Introduction"},
+{id:"sa21",cat:"Marketing",pts:10,type:"buzzer",q:"Dividing market into buyer groups?",a:"Market segmentation"},
+{id:"sa22",cat:"Marketing",pts:20,type:"mc",q:"Person-to-person sales communication:",a:"D",options:["Advertising","PR","Sales promotion","Personal selling"]},
+{id:"sa23",cat:"Management",pts:5,type:"buzzer",q:"Four management functions?",a:"Planning, organizing, leading, controlling"},
+{id:"sa24",cat:"Management",pts:10,type:"mc",q:"After safety in Maslow's hierarchy:",a:"B",options:["Physiological","Social/belonging","Esteem","Self-actualization"]},
+{id:"sa25",cat:"Management",pts:15,type:"buzzer",q:"X vs Y assumptions about workers?",a:"McGregor's Theory X and Y"},
+{id:"sa26",cat:"Management",pts:15,type:"mc",q:"Decisions without subordinate input:",a:"A",options:["Autocratic","Democratic","Laissez-faire","Transformational"]},
+{id:"sa27",cat:"Agribusiness/Finance",pts:5,type:"buzzer",q:"Statement of revenues and expenses over time?",a:"Income statement"},
+{id:"sa28",cat:"Agribusiness/Finance",pts:10,type:"mc",q:"Current asset?",a:"C",options:["Equipment","Land","Inventory","Goodwill"]},
+{id:"sa29",cat:"Agribusiness/Finance",pts:10,type:"buzzer",q:"Accounting equation?",a:"Assets = Liabilities + Equity"},
+{id:"sa30",cat:"Agribusiness/Finance",pts:15,type:"mc",q:"Depreciation is:",a:"B",options:["Market value decrease","Cost allocation over useful life","Cash outflow","Debt increase"]},
+{id:"sa31",cat:"Agribusiness/Finance",pts:5,type:"buzzer",q:"Rate making NPV = 0?",a:"IRR"},
+{id:"sa32",cat:"Agribusiness/Finance",pts:10,type:"buzzer",q:"Money owed by customers for credit sales?",a:"Accounts receivable"},
+{id:"sa33",cat:"Resource/Policy",pts:10,type:"buzzer",q:"Federal ag/food legislation renewed every ~5 years?",a:"Farm Bill"},
+{id:"sa34",cat:"Resource/Policy",pts:15,type:"mc",q:"Largest Farm Bill spending title?",a:"B",options:["Commodities","Nutrition (SNAP)","Conservation","Crop insurance"]},
+{id:"sa35",cat:"Resource/Policy",pts:10,type:"buzzer",q:"Farm Bill title with CRP?",a:"Conservation"},
+{id:"sa36",cat:"Resource/Policy",pts:20,type:"buzzer",q:"Agency administering SNAP?",a:"USDA"},
+{id:"sa37",cat:"Resource/Policy",pts:15,type:"buzzer",q:"Cap-and-trade system?",a:"Cap emissions, firms buy/sell permits"},
+{id:"sa38",cat:"Resource/Policy",pts:5,type:"fill",q:"Tax correcting negative externality = __________ tax.",a:"Pigovian"},
+{id:"sa39",cat:"Resource/Policy",pts:15,type:"buzzer",q:"Coase theorem condition?",a:"Low transaction costs, defined property rights"},
+{id:"sa40",cat:"Microeconomics",pts:10,type:"mc",q:"Long-run competitive equilibrium profit:",a:"B",options:["Positive","Zero","Negative","Maximized"]},
+{id:"sa41",cat:"Microeconomics",pts:15,type:"buzzer",q:"Accounting vs economic profit?",a:"Economic subtracts implicit costs too"},
+{id:"sa42",cat:"Microeconomics",pts:5,type:"fill",q:"Law of __________ returns: additional output eventually decreases.",a:"diminishing"},
+// ══ NEW: FAMOUS ECONOMISTS & CONCEPTS/QUOTES ══
+{id:"ec1",cat:"Potpourri",pts:10,type:"buzzer",q:"'Inflation is always and everywhere a monetary phenomenon' — who said this?",a:"Milton Friedman"},
+{id:"ec2",cat:"Potpourri",pts:15,type:"buzzer",q:"Adam Smith's concept of an 'invisible hand' refers to what?",a:"The self-regulating nature of markets — individual self-interest unintentionally benefits society"},
+{id:"ec3",cat:"Potpourri",pts:20,type:"buzzer",q:"Keynes argued that in a recession, government should do what?",a:"Increase spending (deficit spending) to stimulate aggregate demand"},
+{id:"ec4",cat:"Potpourri",pts:15,type:"mc",q:"'In the long run, we are all dead' is attributed to:",a:"B",options:["Friedman","Keynes","Marx","Smith"]},
+{id:"ec5",cat:"Potpourri",pts:10,type:"buzzer",q:"Karl Marx believed capitalism would eventually be replaced by what?",a:"Communism (through a workers' revolution)"},
+{id:"ec6",cat:"Potpourri",pts:20,type:"buzzer",q:"David Ricardo's 'iron law of wages' suggested what?",a:"Wages tend toward the minimum level needed to sustain workers"},
+{id:"ec7",cat:"Potpourri",pts:25,type:"buzzer",q:"Hayek's 'The Road to Serfdom' argued that government planning leads to what?",a:"Loss of individual freedom and totalitarianism"},
+{id:"ec8",cat:"Potpourri",pts:15,type:"mc",q:"The concept of 'creative destruction' belongs to:",a:"C",options:["Keynes","Marx","Schumpeter","Hayek"]},
+{id:"ec9",cat:"Potpourri",pts:10,type:"buzzer",q:"Schumpeter's 'creative destruction' means what?",a:"Innovation by entrepreneurs destroys old industries while creating new ones"},
+{id:"ec10",cat:"Potpourri",pts:20,type:"mc",q:"Nash Equilibrium describes a situation where:",a:"A",options:["No player benefits from changing strategy alone","All players maximize profit","Markets reach perfect competition","Government intervention is optimal"]},
+{id:"ec11",cat:"Potpourri",pts:15,type:"buzzer",q:"Malthus predicted that population grows ________ while food supply grows ________.",a:"Geometrically (exponentially); arithmetically (linearly)"},
+{id:"ec12",cat:"Potpourri",pts:10,type:"mc",q:"'It is not from the benevolence of the butcher, the brewer, or the baker that we expect our dinner' — who?",a:"A",options:["Adam Smith","Ricardo","Marx","Keynes"]},
+{id:"ec13",cat:"Potpourri",pts:25,type:"buzzer",q:"Friedman advocated for what monetary policy rule?",a:"A constant, steady growth rate of the money supply (k-percent rule)"},
+{id:"ec14",cat:"Potpourri",pts:20,type:"mc",q:"The 'paradox of thrift' — where increased saving reduces aggregate demand — is associated with:",a:"B",options:["Friedman","Keynes","Hayek","Smith"]},
+{id:"ec15",cat:"Potpourri",pts:15,type:"buzzer",q:"Which economist introduced the idea of 'absolute advantage' before Ricardo refined it to 'comparative advantage'?",a:"Adam Smith"},
+{id:"ec16",cat:"Potpourri",pts:25,type:"mc",q:"'From each according to his ability, to each according to his needs' comes from:",a:"D",options:["Smith","Keynes","Ricardo","Marx"]},
+{id:"ec17",cat:"Potpourri",pts:10,type:"buzzer",q:"Hayek and Keynes fundamentally disagreed about what?",a:"Whether government intervention helps or harms the economy"},
+{id:"ec18",cat:"Potpourri",pts:20,type:"buzzer",q:"What is Friedman most associated with as a school of economic thought?",a:"Monetarism"},
+// ══ NEW: GDP TYPES ══
+{id:"gd1",cat:"Macroeconomics",pts:5,type:"buzzer",q:"What is the difference between GDP and GNP?",a:"GDP = produced within a country; GNP = produced by a country's citizens (anywhere)"},
+{id:"gd2",cat:"Macroeconomics",pts:10,type:"mc",q:"GDP per capita is calculated by:",a:"C",options:["GDP × population","GDP + population","GDP ÷ population","GDP − population"]},
+{id:"gd3",cat:"Macroeconomics",pts:15,type:"buzzer",q:"If nominal GDP is $20 trillion and real GDP is $18 trillion, prices have done what since the base year?",a:"Increased (deflator > 100)"},
+{id:"gd4",cat:"Macroeconomics",pts:10,type:"mc",q:"Which is NOT included in GDP?",a:"D",options:["Government purchases","Business investment","Consumer spending","Used car sales"]},
+{id:"gd5",cat:"Macroeconomics",pts:20,type:"buzzer",q:"What is the GDP deflator formula?",a:"(Nominal GDP / Real GDP) × 100"},
+{id:"gd6",cat:"Macroeconomics",pts:15,type:"mc",q:"Real GDP uses ________ prices while nominal GDP uses ________ prices.",a:"A",options:["Base-year; current","Current; base-year","Adjusted; unadjusted","Future; past"]},
+{id:"gd7",cat:"Macroeconomics",pts:5,type:"fill",q:"GDP measured by adding wages, rent, interest, and profits is the ________ approach.",a:"income"},
+{id:"gd8",cat:"Macroeconomics",pts:25,type:"buzzer",q:"If real GDP grows but population grows faster, what happens to standard of living?",a:"It declines (real GDP per capita falls)"},
+// ══ NEW: UNEMPLOYMENT TYPES ══
+{id:"un1",cat:"Macroeconomics",pts:10,type:"buzzer",q:"A software engineer laid off because AI automated their job is what type of unemployed?",a:"Structural"},
+{id:"un2",cat:"Macroeconomics",pts:5,type:"mc",q:"The unemployment rate is calculated as:",a:"B",options:["Unemployed ÷ population","Unemployed ÷ labor force × 100","Employed ÷ population","Labor force ÷ population"]},
+{id:"un3",cat:"Macroeconomics",pts:15,type:"buzzer",q:"When the economy is at the natural rate of unemployment, is there still unemployment?",a:"Yes — frictional and structural unemployment still exist"},
+{id:"un4",cat:"Macroeconomics",pts:20,type:"mc",q:"A discouraged worker is someone who:",a:"C",options:["Works part-time involuntarily","Is frictionally unemployed","Has stopped looking for work","Is underemployed"]},
+{id:"un5",cat:"Macroeconomics",pts:10,type:"buzzer",q:"Full employment does NOT mean zero unemployment. Why?",a:"Because frictional and structural unemployment are always present"},
+{id:"un6",cat:"Macroeconomics",pts:15,type:"fill",q:"Unemployment caused by a mismatch between worker skills and job requirements is ________ unemployment.",a:"structural"},
+// ══ NEW: INTEREST RATE TYPES ══
+{id:"ir1",cat:"Macroeconomics",pts:10,type:"buzzer",q:"What is the federal funds rate?",a:"The interest rate banks charge each other for overnight loans of reserves"},
+{id:"ir2",cat:"Macroeconomics",pts:15,type:"mc",q:"The real interest rate equals:",a:"A",options:["Nominal rate minus inflation","Nominal rate plus inflation","Nominal rate times inflation","Nominal rate divided by inflation"]},
+{id:"ir3",cat:"Macroeconomics",pts:5,type:"buzzer",q:"What is the prime rate?",a:"The interest rate banks charge their most creditworthy customers"},
+{id:"ir4",cat:"Macroeconomics",pts:20,type:"buzzer",q:"If the nominal interest rate is 8% and inflation is 3%, what is the real interest rate?",a:"5%"},
+{id:"ir5",cat:"Macroeconomics",pts:10,type:"mc",q:"When the Fed raises the federal funds rate, borrowing becomes:",a:"B",options:["Cheaper","More expensive","Unchanged","Free"]},
+{id:"ir6",cat:"Macroeconomics",pts:15,type:"buzzer",q:"The Fisher equation relates which three variables?",a:"Nominal interest rate = real interest rate + expected inflation"},
+// ══ NEW: MICRO — SUPPLY & DEMAND ══
+{id:"sd1",cat:"Microeconomics",pts:5,type:"mc",q:"An increase in consumer income shifts the demand for normal goods:",a:"A",options:["Right","Left","No shift","Indeterminate"]},
+{id:"sd2",cat:"Microeconomics",pts:10,type:"buzzer",q:"What is the difference between a change in demand and a change in quantity demanded?",a:"Change in demand shifts the curve (non-price factors); change in Qd is movement along the curve (price change)"},
+{id:"sd3",cat:"Microeconomics",pts:15,type:"buzzer",q:"If the price of a substitute increases, what happens to demand for the original good?",a:"Demand increases (shifts right)"},
+{id:"sd4",cat:"Microeconomics",pts:10,type:"mc",q:"A surplus occurs when:",a:"C",options:["Qd > Qs","Qd = Qs","Qs > Qd","Price is below equilibrium"]},
+{id:"sd5",cat:"Microeconomics",pts:20,type:"buzzer",q:"If both supply and demand increase, what happens to equilibrium quantity and price?",a:"Quantity increases; price is indeterminate (could rise, fall, or stay)"},
+// ══ NEW: MICRO — ELASTICITY ══
+{id:"el1",cat:"Microeconomics",pts:10,type:"mc",q:"If income elasticity of demand is negative, the good is:",a:"B",options:["Normal","Inferior","Luxury","Giffen"]},
+{id:"el2",cat:"Microeconomics",pts:15,type:"buzzer",q:"What is perfectly inelastic demand? What does the curve look like?",a:"Quantity demanded doesn't change regardless of price — vertical demand curve"},
+{id:"el3",cat:"Microeconomics",pts:20,type:"buzzer",q:"Along a linear demand curve, elasticity varies. Where is total revenue maximized?",a:"At the unit elastic point (midpoint)"},
+{id:"el4",cat:"Microeconomics",pts:10,type:"fill",q:"If cross-price elasticity between two goods is negative, they are __________.",a:"complements"},
+{id:"el5",cat:"Microeconomics",pts:25,type:"mc",q:"A good with income elasticity > 1 is classified as:",a:"D",options:["Inferior","Normal necessity","Giffen","Luxury"]},
+// ══ NEW: MICRO — COST CURVES ══
+{id:"cc1",cat:"Microeconomics",pts:5,type:"buzzer",q:"What is the relationship between ATC, AVC, and AFC?",a:"ATC = AVC + AFC"},
+{id:"cc2",cat:"Microeconomics",pts:10,type:"mc",q:"MC crosses ATC at what point?",a:"B",options:["Maximum ATC","Minimum ATC","Where ATC = AVC","Maximum MC"]},
+{id:"cc3",cat:"Microeconomics",pts:15,type:"buzzer",q:"As output increases, what happens to AFC and why?",a:"AFC falls because fixed costs are spread over more units"},
+{id:"cc4",cat:"Microeconomics",pts:20,type:"buzzer",q:"If MC < ATC, what is happening to ATC?",a:"ATC is falling"},
+{id:"cc5",cat:"Microeconomics",pts:10,type:"fill",q:"In the short run, at least one input is ________; in the long run, all inputs are variable.",a:"fixed"},
+// ══ NEW: MICRO — MARKET STRUCTURES ══
+{id:"ms1",cat:"Microeconomics",pts:10,type:"mc",q:"Which market structure has the most firms?",a:"A",options:["Perfect competition","Monopolistic competition","Oligopoly","Monopoly"]},
+{id:"ms2",cat:"Microeconomics",pts:15,type:"buzzer",q:"Why does a monopoly produce less and charge more than a competitive market?",a:"The monopolist restricts output to where MR=MC, which is below the competitive quantity, and charges a higher price from the demand curve"},
+{id:"ms3",cat:"Microeconomics",pts:20,type:"mc",q:"The kinked demand curve model explains why oligopolists:",a:"C",options:["Maximize profit","Minimize cost","Keep prices stable","Earn zero profit"]},
+{id:"ms4",cat:"Microeconomics",pts:5,type:"buzzer",q:"What type of profit do perfectly competitive firms earn in the long run?",a:"Zero economic profit (normal profit only)"},
+{id:"ms5",cat:"Microeconomics",pts:25,type:"buzzer",q:"What is the key difference between monopolistic competition and perfect competition?",a:"Product differentiation — monopolistic competitors sell similar but not identical products"},
+// ══ NEW: MICRO — CONSUMER THEORY ══
+{id:"ct1",cat:"Microeconomics",pts:10,type:"buzzer",q:"What does an indifference curve show?",a:"All combinations of two goods that give a consumer the same level of satisfaction (utility)"},
+{id:"ct2",cat:"Microeconomics",pts:15,type:"mc",q:"The marginal rate of substitution (MRS) is the slope of:",a:"B",options:["The budget line","The indifference curve","The demand curve","The supply curve"]},
+{id:"ct3",cat:"Microeconomics",pts:20,type:"buzzer",q:"At the optimal consumption bundle, what must be true?",a:"MRS = price ratio (slope of indifference curve = slope of budget line)"},
+{id:"ct4",cat:"Microeconomics",pts:10,type:"fill",q:"The law of __________ marginal utility says each additional unit gives less satisfaction.",a:"diminishing"},
+{id:"ct5",cat:"Microeconomics",pts:15,type:"buzzer",q:"If the price of good X falls, the substitution effect always leads consumers to buy:",a:"More of good X (substitute toward the cheaper good)"},
+// ══ NEW: MICRO — WELFARE ══
+{id:"wf1",cat:"Microeconomics",pts:10,type:"buzzer",q:"Consumer surplus is the area between what and the price line?",a:"The demand curve and the price line (above price, below demand)"},
+{id:"wf2",cat:"Microeconomics",pts:15,type:"mc",q:"Total surplus equals:",a:"C",options:["Consumer surplus only","Producer surplus only","Consumer surplus + producer surplus","Revenue minus cost"]},
+{id:"wf3",cat:"Microeconomics",pts:20,type:"buzzer",q:"A tax creates deadweight loss because it causes what?",a:"Some mutually beneficial trades to not occur — quantity traded falls below the efficient level"},
+{id:"wf4",cat:"Microeconomics",pts:10,type:"buzzer",q:"Who bears more of a tax burden — the side with more elastic or more inelastic demand/supply?",a:"The more inelastic side bears more of the burden"},
+// ══ NEW: EQUATIONS & PROBLEM SOLVING ══
+{id:"eq1",cat:"Quantitative",pts:15,type:"buzzer",q:"Qd = 80 - 4P, Qs = 4P. Find equilibrium P and Q.",a:"P = 10, Q = 40 (80 - 4P = 4P → 8P = 80)"},
+{id:"eq2",cat:"Quantitative",pts:20,type:"buzzer",q:"Qd = 120 - 6P, Qs = 2P - 8. Find equilibrium P and Q.",a:"P = 16, Q = 24 (120 - 6P = 2P - 8 → 128 = 8P)"},
+{id:"eq3",cat:"Quantitative",pts:25,type:"buzzer",q:"If demand is P = 100 - 2Q, what is the marginal revenue function?",a:"MR = 100 - 4Q (same intercept, twice the slope)"},
+{id:"eq4",cat:"Quantitative",pts:25,type:"buzzer",q:"Demand: P = 50 - Q. MC = 10. Find profit-maximizing Q for a monopolist.",a:"Q = 20 (MR = 50 - 2Q = 10 → 2Q = 40)"},
+{id:"eq5",cat:"Quantitative",pts:20,type:"buzzer",q:"Demand: P = 50 - Q. Monopolist produces Q = 20. What price does it charge?",a:"$30 (P = 50 - 20 = 30)"},
+{id:"eq6",cat:"Quantitative",pts:25,type:"buzzer",q:"Monopolist: P = 50 - Q, MC = 10, Q = 20, P = 30. If ATC = 15, what is total profit?",a:"$300 (profit per unit = 30 - 15 = 15; total = 15 × 20)"},
+{id:"eq7",cat:"Quantitative",pts:15,type:"buzzer",q:"If demand is Q = 200 - 10P, rewrite as inverse demand (solve for P).",a:"P = 20 - 0.1Q"},
+{id:"eq8",cat:"Quantitative",pts:20,type:"buzzer",q:"If inverse demand is P = 20 - 0.1Q, what is MR?",a:"MR = 20 - 0.2Q"},
+{id:"eq9",cat:"Quantitative",pts:15,type:"mc",q:"For a linear demand curve P = a - bQ, the MR curve is always:",a:"A",options:["MR = a - 2bQ","MR = a - bQ","MR = 2a - bQ","MR = a/2 - bQ"]},
+{id:"eq10",cat:"Quantitative",pts:10,type:"buzzer",q:"TC = 500 + 10Q + Q². Find MC.",a:"MC = 10 + 2Q (derivative of TC)"},
+{id:"eq11",cat:"Quantitative",pts:20,type:"buzzer",q:"TC = 500 + 10Q + Q². At Q = 10, what is ATC?",a:"$70 (TC = 500 + 100 + 100 = 700; ATC = 700/10)"},
+{id:"eq12",cat:"Quantitative",pts:15,type:"buzzer",q:"Perfectly competitive firm: P = 30, TC = 200 + 5Q + 0.5Q². Find profit-maximizing Q.",a:"Q = 25 (MC = 5 + Q = P = 30 → Q = 25)"},
+{id:"eq13",cat:"Quantitative",pts:25,type:"buzzer",q:"From previous: P = 30, Q = 25, TC = 200 + 5(25) + 0.5(625) = 637.5. What is profit?",a:"$112.50 (TR = 750 - TC = 637.50)"},
+{id:"eq14",cat:"Quantitative",pts:10,type:"buzzer",q:"If the spending multiplier is 5, what is the MPC?",a:"0.8 (multiplier = 1/(1-MPC) → 5 = 1/(1-MPC) → MPC = 0.8)"},
+{id:"eq15",cat:"Quantitative",pts:15,type:"buzzer",q:"MPC = 0.75. Government increases spending by $100B. Change in GDP?",a:"$400B (multiplier = 4 × $100B)"},
+{id:"eq16",cat:"Quantitative",pts:20,type:"buzzer",q:"MPC = 0.75. Taxes are cut by $100B. Change in GDP?",a:"$300B (tax multiplier = -MPC/(1-MPC) = -3; but it's a cut so +$300B)"},
+{id:"eq17",cat:"Quantitative",pts:10,type:"buzzer",q:"Price elasticity formula using midpoint method?",a:"(ΔQ/avg Q) ÷ (ΔP/avg P)"},
+{id:"eq18",cat:"Quantitative",pts:15,type:"buzzer",q:"Price goes from $10 to $8, quantity from 100 to 140. Midpoint elasticity?",a:"-1.29 ((40/120) ÷ (-2/9) = 0.333/0.222)"},
+{id:"eq19",cat:"Quantitative",pts:20,type:"mc",q:"If demand is Q = 50 - 2P and supply is Q = 3P - 10, what happens with a $5 per unit tax on sellers?",a:"B",options:["New P = $15","New P = $14","New P = $10","New P = $12"]},
+{id:"eq20",cat:"Quantitative",pts:25,type:"buzzer",q:"Demand: Q = 50 - 2P. Supply: Q = 3P - 10. Equilibrium without tax?",a:"P = $12, Q = 26 (50 - 2P = 3P - 10 → 60 = 5P)"},
+];
+
+// ══ NAMED SESSIONS ══
+const SESSIONS=[
+{name:"Session 1: Micro — Supply, Demand & Elasticity",questions:TRAIN.filter(q=>q.cat==="Microeconomics"&&(q.id.startsWith("sd")||q.id.startsWith("el")||["r1","r2","r3","r4","r5","r6","r7","r8"].includes(q.id))).slice(0,25)},
+{name:"Session 2: Micro — Costs, Structures & Welfare",questions:TRAIN.filter(q=>q.cat==="Microeconomics"&&(q.id.startsWith("cc")||q.id.startsWith("ms")||q.id.startsWith("wf")||q.id.startsWith("ct")||["r9","r10","r11","r12","r13","r14","r15","r16","r17"].includes(q.id))).slice(0,25)},
+{name:"Session 3: Macro — GDP, Unemployment & Interest Rates",questions:TRAIN.filter(q=>q.cat==="Macroeconomics"&&(q.id.startsWith("gd")||q.id.startsWith("un")||q.id.startsWith("ir")||["r30","r31","r32","r33","r34","r37","r40","r51"].includes(q.id))).slice(0,25)},
+{name:"Session 4: Macro — Policy & Money",questions:TRAIN.filter(q=>q.cat==="Macroeconomics"&&!q.id.startsWith("gd")&&!q.id.startsWith("un")&&!q.id.startsWith("ir")).slice(0,25)},
+{name:"Session 5: Finance & Accounting",questions:TRAIN.filter(q=>q.cat==="Agribusiness/Finance").slice(0,25)},
+{name:"Session 6: Marketing & Management",questions:[...TRAIN.filter(q=>q.cat==="Marketing").slice(0,13),...TRAIN.filter(q=>q.cat==="Management").slice(0,12)]},
+{name:"Session 7: Quantitative & Equations",questions:TRAIN.filter(q=>q.cat==="Quantitative").slice(0,30)},
+{name:"Session 8: Resource Policy & Externalities",questions:TRAIN.filter(q=>q.cat==="Resource/Policy").slice(0,25)},
+{name:"Session 9: Famous Economists & Big Ideas",questions:TRAIN.filter(q=>q.id.startsWith("e")||q.id.startsWith("ec")).slice(0,25)},
+{name:"Session 10: Mixed Review",questions:[...TRAIN].sort(()=>Math.random()-.5).slice(0,30)},
+];
+
+// ═══ HELPERS ═══
+const e=h;const S=(t,p,...c)=>e(t,p,...c);
+const D=({children,...p})=>e("div",p,children);
+const P=({children,...p})=>e("p",p,children);
+const B=({children,...p})=>e("button",p,children);
+const I=(p)=>e("input",p);
+const ansText=(q)=>q.type==="mc"&&q.options?q.a+". "+(q.options[["A","B","C","D","E"].indexOf(q.a)]||q.a):q.a;
+
+// ═══ APP ═══
+function App(){
+const[tab,setTab]=useState("train");
+const[coach,setCoach]=useState(false);
+const[pw,setPw]=useState("");
+const[pwErr,setPwErr]=useState(false);
+const[players,setPlayers]=useState(["Player 1","Player 2","Player 3","Player 4","Player 5","Player 6","Player 7","Player 8"]);
+const[trainQs,setTrainQs]=useState([...TRAIN]);
+const[assessQs,setAssessQs]=useState([...ASSESS]);
+const[named,setNamed]=useState([]);
+const[hist,setHist]=useState([]);
+const[flash,setFlash]=useState(()=>ld("flash",{}));
+const[ready,setReady]=useState(false);
+
+useEffect(()=>{
+const r={players:db.ref("players"),training:db.ref("training"),assess:db.ref("assess"),named:db.ref("named"),hist:db.ref("hist")};
+
+// Migration: check localStorage for existing data and push to Firebase if Firebase is empty
+const localPlayers=ld("players",null);
+const localHist=ld("hist",null);
+const localTraining=ld("training",null);
+const localAssess=ld("assess",null);
+const localNamed=ld("named",null);
+
+r.players.on("value",s=>{const v=s.val();if(v){const a=Array.isArray(v)?v:Object.values(v);if(a.length)setPlayers(a);}});
+r.training.on("value",s=>{const v=s.val();if(v){const a=Array.isArray(v)?v:Object.values(v);if(a.length){const ids=new Set(a.map(q=>q.id));setTrainQs([...a,...TRAIN.filter(q=>!ids.has(q.id))]);}}});
+r.assess.on("value",s=>{const v=s.val();if(v){const a=Array.isArray(v)?v:Object.values(v);if(a.length){const ids=new Set(a.map(q=>q.id));setAssessQs([...a,...ASSESS.filter(q=>!ids.has(q.id))]);}}});
+r.named.on("value",s=>{const v=s.val();if(v){const a=Array.isArray(v)?v:Object.values(v);setNamed(a);}});
+r.hist.on("value",s=>{const v=s.val();if(v){const a=Array.isArray(v)?v:Object.values(v);setHist(a);}});
+
+// Seed Firebase: prefer localStorage data over defaults
+db.ref("players").once("value",s=>{
+  if(!s.val()){
+    const p=localPlayers&&localPlayers.length?localPlayers:["Player 1","Player 2","Player 3","Player 4","Player 5","Player 6","Player 7","Player 8"];
+    fbSet("players",p);
+  }
+});
+db.ref("hist").once("value",s=>{
+  if(!s.val()&&localHist&&localHist.length){
+    fbSet("hist",localHist);
+  }
+});
+db.ref("training").once("value",s=>{
+  if(!s.val()){
+    const t=localTraining&&localTraining.length?localTraining:TRAIN;
+    fbSet("training",t);
+  }
+});
+db.ref("assess").once("value",s=>{
+  if(!s.val()){
+    const a=localAssess&&localAssess.length?localAssess:ASSESS;
+    fbSet("assess",a);
+  }
+});
+db.ref("named").once("value",s=>{if(!s.val())fbSet("named",SESSIONS);});
+setReady(true);
+return()=>Object.values(r).forEach(x=>x.off());
+},[]);
+
+useEffect(()=>sv("flash",flash),[flash]);
+
+const sync=(path,setter)=>(fn)=>{const v=typeof fn==="function"?fn(path==="players"?players:path==="training"?trainQs:path==="assess"?assessQs:named):fn;setter(v);fbSet(path,v);};
+const sP=sync("players",setPlayers);
+const sT=sync("training",setTrainQs);
+const sA=sync("assess",setAssessQs);
+const sN=sync("named",setNamed);
+const addH=(ev)=>{const entry={...ev,ts:Date.now()};setHist(p=>{const n=[...p,entry];fbSet("hist",n);return n;});};
+const addT=(q)=>{const nq={...q,id:"t"+Date.now()+"_"+Math.random().toString(36).slice(2,5)};setTrainQs(p=>{const n=[...p,nq];fbSet("training",n);return n;});};
+const addAQ=(q)=>{const nq={...q,id:"a"+Date.now()+"_"+Math.random().toString(36).slice(2,5)};setAssessQs(p=>{const n=[...p,nq];fbSet("assess",n);return n;});};
+
+const tabs=[
+...(coach?[{id:"mock",l:"Mock",i:"🏆"}]:[]),
+{id:"train",l:"Training",i:"⚡"},{id:"flash",l:"Cards",i:"🃏"},{id:"assess",l:"Test",i:"📝"},
+...(coach?[{id:"build",l:"Build",i:"✏️"}]:[]),
+{id:"team",l:"Team",i:"👥"},
+...(!coach?[{id:"coach",l:"Coach",i:"🔒"}]:[{id:"coach",l:"Out",i:"🔓"}])
+];
+
+return html`<div>
+${!coach&&html`<div style=${{margin:"12px 16px 0",background:"linear-gradient(135deg,#2563eb12,#f9731612)",border:"1px solid #2563eb33",borderRadius:10,padding:"14px 16px"}}>
+<p style=${{fontSize:17,fontWeight:700,color:"#2563eb",marginBottom:6}}>📋 Daily Practice Routine</p>
+<div style=${{fontSize:16,color:"#1a202c",lineHeight:1.6}}>
+<p><b style=${{color:"#2563eb"}}>1.</b> Start with a <b>Training Quiz</b> — 20 timed questions</p>
+<p><b style=${{color:"#2563eb"}}>2.</b> Hit <b>Flashcards</b> — drill your weak spots</p>
+<p><b style=${{color:"#2563eb"}}>3.</b> Take any assigned <b>Assessments</b></p>
+<p style=${{fontSize:18,color:"#64748b",marginTop:6}}>Scores go to the leaderboard — put in the reps!</p>
+</div></div>`}
+<div style=${{padding:"12px 16px 0",overflowX:"auto",whiteSpace:"nowrap"}}>
+<div style=${{display:"inline-flex",gap:3,background:"#eff6ff",borderRadius:10,padding:3}}>
+${tabs.map(t=>html`<button key=${t.id} onClick=${()=>setTab(t.id)} style=${{padding:"10px 12px",borderRadius:8,fontSize:17,fontWeight:tab===t.id?700:400,background:tab===t.id?"#2563eb":"transparent",color:tab===t.id?"#ffffff":"#1a202c"}}>${t.i} ${t.l}</button>`)}
+</div></div>
+<main style=${{padding:"14px 16px 40px",maxWidth:960,margin:"0 auto"}}>
+${tab==="train"&&html`<${Train} qs=${trainQs} players=${players} addH=${addH}/>`}
+${tab==="flash"&&html`<${Flash} qs=${trainQs} prog=${flash} setProg=${setFlash}/>`}
+${tab==="assess"&&html`<${Assess} qs=${assessQs} players=${players} addH=${addH} named=${named}/>`}
+${tab==="build"&&coach&&html`<${Build} addT=${addT} tQs=${trainQs} setT=${sT} aQs=${assessQs} setA=${sA} addAQ=${addAQ} named=${named} setN=${sN}/>`}
+${tab==="team"&&html`<${Team} players=${players} setPlayers=${sP} hist=${hist}/>`}
+${tab==="coach"&&!coach&&html`<div class="fu" style=${{maxWidth:360,margin:"0 auto",textAlign:"center"}}>
+<div style=${{fontSize:48,marginBottom:12}}>🔒</div>
+<h2 class="m" style=${{fontSize:18,fontWeight:800,marginBottom:20}}>Coach Login</h2>
+<input type="password" value=${pw} onInput=${e=>setPw(e.target.value)} onKeyDown=${e=>{if(e.key==="Enter"){pw==="Timmydog28"?(setCoach(true),setTab("mock"),setPw("")):setPwErr(true)}}} placeholder="Password" class="inp m" style=${{textAlign:"center",marginBottom:10}}/>
+${pwErr&&html`<p style=${{color:"#ef4444",fontSize:18,marginBottom:10}}>Wrong password</p>`}
+<button onClick=${()=>pw==="Timmydog28"?(setCoach(true),setTab("mock"),setPw("")):setPwErr(true)} style=${{width:"100%",background:"#2563eb",color:"#060a12",padding:12,borderRadius:8,fontSize:17,fontWeight:700}}>Unlock</button>
+</div>`}
+${tab==="coach"&&coach&&html`<div class="fu" style=${{maxWidth:360,margin:"0 auto",textAlign:"center"}}>
+<div style=${{fontSize:48,marginBottom:12}}>🔓</div>
+<button onClick=${()=>{setCoach(false);setTab("train")}} style=${{background:"#bfdbfe",color:"#1e293b",padding:"10px 24px",borderRadius:8,border:"1px solid #cbd5e1"}}>Lock & Log Out</button>
+</div>`}
+</main></div>`;
+}
+
+// ═══ TRAINING ═══
+function Train({qs,players,addH}){
+const[ph,setPh]=useState("setup");
+const[pl,setPl]=useState("");
+const[cats,setCats]=useState([...CATS]);
+const[dk,setDk]=useState([]);const[ix,setIx]=useState(0);
+const[sc,setSc]=useState(0);const[res,setRes]=useState([]);
+const[sa,setSa]=useState(false);const[ans,setAns]=useState(false);
+const[tm,setTm]=useState(15);const[ta,setTa]=useState(false);
+const ref=useRef();
+const go=()=>{if(!pl)return;const p=qs.filter(q=>cats.includes(q.cat)),s=[...p].sort(()=>Math.random()-.5).slice(0,20);if(!s.length)return;setDk(s);setIx(0);setSc(0);setRes([]);setSa(false);setAns(false);setTm(15);setTa(true);setPh("play");};
+useEffect(()=>{if(ph==="play"&&ta&&tm>0)ref.current=setTimeout(()=>setTm(t=>t-1),1e3);else if(ph==="play"&&ta&&tm===0){setTa(false);setSa(true);}return()=>clearTimeout(ref.current);},[tm,ta,ph]);
+const buzz=()=>{setTa(false);setSa(true)};
+const yes=()=>{if(ans)return;const q=dk[ix];setSc(s=>s+q.pts);setRes(p=>[...p,{c:true}]);addH({player:pl,cat:q.cat,pts:q.pts,correct:true,mode:"train"});setAns(true)};
+const no=()=>{if(ans)return;addH({player:pl,cat:dk[ix].cat,pts:0,correct:false,mode:"train"});setRes(p=>[...p,{c:false}]);setAns(true)};
+const nx=()=>{if(!ans){addH({player:pl,cat:dk[ix].cat,pts:0,correct:false,mode:"train"});setRes(p=>[...p,{c:false}]);}if(ix+1>=dk.length){setPh("done");return;}setIx(i=>i+1);setSa(false);setAns(false);setTm(15);setTa(true)};
+
+if(ph==="setup")return html`<div class="fu">
+<h2 class="m" style=${{fontSize:18,fontWeight:800,marginBottom:6}}>⚡ Training Quiz</h2>
+<p style=${{fontSize:16,color:"#64748b",marginBottom:16}}>${qs.length?'Drill daily! Pick your name and go.':'Questions coming soon!'}</p>
+${qs.length>0&&html`<div>
+<label class="m" style=${{fontSize:18,fontWeight:700,color:"#2563eb",display:"block",marginBottom:6}}>WHO ARE YOU?</label>
+<div style=${{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(130px,1fr))",gap:6,marginBottom:16}}>
+${players.map(p=>html`<button onClick=${()=>setPl(p)} style=${{padding:13,borderRadius:8,fontSize:16,fontWeight:pl===p?700:500,background:pl===p?"#2563eb":"#ffffff",border:"2px solid "+(pl===p?"#2563eb":"#e2e8f0"),color:pl===p?"#ffffff":"#1a202c"}}>${p}</button>`)}</div>
+<div style=${{display:"flex",flexWrap:"wrap",gap:5,marginBottom:14}}>
+${CATS.map(c=>html`<button onClick=${()=>setCats(p=>p.includes(c)?p.filter(x=>x!==c):[...p,c])} style=${{padding:"8px 10px",borderRadius:12,fontSize:16,fontWeight:700,background:cats.includes(c)?CC[c]+"20":"#ffffff",color:cats.includes(c)?CC[c]:"#64748b",border:"1px solid "+(cats.includes(c)?CC[c]+"44":"#e2e8f0")}}>${c} (${qs.filter(q=>q.cat===c).length})</button>`)}</div>
+<button onClick=${go} disabled=${!pl} style=${{background:pl?"#2563eb":"#e2e8f0",color:pl?"#060a12":"#64748b",padding:"12px 32px",borderRadius:8,fontSize:17,fontWeight:700}}>${pl?"Start as "+pl:"Select name"}</button>
+</div>`}</div>`;
+
+if(ph==="done"){const c=res.filter(r=>r.c).length,t=res.length,p=t?Math.round(c/t*100):0;
+return html`<div class="fu" style=${{textAlign:"center",maxWidth:440,margin:"0 auto"}}>
+<div style=${{fontSize:52}}>${p>=80?"🔥":p>=50?"💪":"📚"}</div>
+<h2 class="m" style=${{fontSize:20,fontWeight:800,color:"#2563eb"}}>Done!</h2><p>${pl}</p>
+<div style=${{display:"flex",justifyContent:"center",gap:20,margin:"12px 0 20px"}}>
+<div><div class="m" style=${{fontSize:28,fontWeight:800,color:"#2563eb"}}>${sc}</div><div style=${{fontSize:16,color:"#64748b"}}>pts</div></div>
+<div><div class="m" style=${{fontSize:28,fontWeight:800,color:"#10b981"}}>${c}/${t}</div><div style=${{fontSize:16,color:"#64748b"}}>correct</div></div>
+<div><div class="m" style=${{fontSize:28,fontWeight:800,color:p>=80?"#10b981":p>=50?"#2563eb":"#ef4444"}}>${p}%</div><div style=${{fontSize:16,color:"#64748b"}}>acc</div></div>
+</div>
+<button onClick=${()=>setPh("setup")} style=${{background:"#2563eb",color:"#060a12",padding:"11px 28px",borderRadius:8,fontWeight:700}}>Again</button>
+</div>`;}
+
+const cur=dk[ix];
+return html`<div class="fu">
+<div style=${{display:"flex",justifyContent:"space-between",marginBottom:8}}>
+<span class="m" style=${{fontSize:18,color:"#64748b"}}>Q ${ix+1}/${dk.length} · ${pl}</span>
+<span class="m" style=${{fontSize:17,fontWeight:700,color:"#2563eb"}}>${sc} pts</span></div>
+<div style=${{display:"flex",gap:10,alignItems:"center",marginBottom:12}}>
+<div style=${{flex:1,height:3,background:"#bfdbfe",borderRadius:2}}><div style=${{width:(tm/15*100)+"%",height:"100%",background:tm<=5?"#ef4444":"#2563eb",borderRadius:2,transition:"width 1s linear"}}/></div>
+<span class="m" style=${{fontSize:16,fontWeight:700,color:tm<=5?"#ef4444":"#2563eb"}}>${tm}s</span></div>
+<div style=${{background:"#eff6ff",borderRadius:14,padding:24,border:"1px solid #93c5fd",marginBottom:16}}>
+<div style=${{display:"flex",gap:6,marginBottom:14}}>
+<span style=${{background:CC[cur.cat]+"20",color:CC[cur.cat],padding:"3px 10px",borderRadius:16,fontSize:17,fontWeight:700}}>${cur.cat}</span>
+<span style=${{background:"#2563eb20",color:"#2563eb",padding:"3px 8px",borderRadius:16,fontSize:17,fontWeight:700}}>${cur.pts} pts</span></div>
+<p style=${{fontSize:17,lineHeight:1.55,fontWeight:700,marginBottom:16}}>${cur.q}</p>
+${cur.type==="mc"&&cur.options&&!sa&&html`<div style=${{display:"grid",gap:6,marginBottom:14}}>
+${cur.options.map((o,i)=>html`<div style=${{padding:"10px 14px",borderRadius:8,fontSize:16,background:"#bfdbfe",border:"1px solid #cbd5e1",color:"#1a202c"}}>${["A","B","C","D"][i]}. ${o}</div>`)}</div>`}
+${!sa&&html`<button onClick=${buzz} style=${{background:"linear-gradient(135deg,#ef4444,#b91c1c)",color:"white",padding:"14px 36px",borderRadius:12,fontSize:17,fontWeight:800,display:"block",margin:"0 auto"}}>🔔 REVEAL</button>`}
+${sa&&html`<div class="fr" style=${{background:"#10b98118",border:"2px solid #10b981",borderRadius:10,padding:16}}>
+<p class="m" style=${{fontSize:16,fontWeight:700,color:"#10b981",marginBottom:6}}>ANSWER</p>
+<p style=${{fontSize:20,fontWeight:800,color:"#1e293b"}}>${ansText(cur)}</p></div>`}
+</div>
+${sa&&!ans&&html`<div class="fu" style=${{marginBottom:14}}>
+<p class="m" style=${{fontSize:18,fontWeight:700,color:"#64748b",marginBottom:8}}>DID YOU KNOW IT?</p>
+<div style=${{display:"flex",gap:10}}>
+<button onClick=${no} style=${{flex:1,padding:13,borderRadius:10,fontSize:18,fontWeight:700,background:"#ef444418",color:"#ef4444",border:"1px solid #ef444433"}}>✗ Nope</button>
+<button onClick=${yes} style=${{flex:1,padding:13,borderRadius:10,fontSize:18,fontWeight:700,background:"#10b98118",color:"#10b981",border:"1px solid #10b98133"}}>✓ Got It!</button>
+</div></div>`}
+${ans&&html`<button onClick=${nx} style=${{width:"100%",background:"#2563eb",color:"#060a12",padding:12,borderRadius:8,fontWeight:700}}>${ix+1>=dk.length?"Results":"Next →"}</button>`}
+${sa&&!ans&&html`<button onClick=${nx} style=${{width:"100%",marginTop:8,background:"#bfdbfe",color:"#64748b",padding:13,borderRadius:8,fontSize:18,border:"1px solid #cbd5e1"}}>Skip</button>`}
+</div>`;
+}
+
+// ═══ FLASHCARDS ═══
+function Flash({qs,prog,setProg}){
+const[cat,setCat]=useState("All");
+const[dk,setDk]=useState([]);const[ix,setIx]=useState(0);
+const[flip,setFlip]=useState(false);const[on,setOn]=useState(false);
+const go=()=>{let p=cat==="All"?[...qs]:qs.filter(q=>q.cat===cat);
+p=p.map(q=>{const r=prog[q.id]||{r:0,w:0};return{...q,wt:Math.max(.1,1+r.w*2-r.r*.5)}}).sort((a,b)=>b.wt-a.wt).slice(0,30);
+for(let i=p.length-1;i>0;i--){const j=0|Math.random()*(i+1);if(Math.random()<.3)[p[i],p[j]]=[p[j],p[i]];}
+if(p.length){setDk(p);setIx(0);setFlip(false);setOn(true);}};
+const mark=(ok)=>{const q=dk[ix];setProg(p=>({...p,[q.id]:{r:(p[q.id]?.r||0)+(ok?1:0),w:(p[q.id]?.w||0)+(ok?0:1)}}));
+if(ix+1>=dk.length){setOn(false);return;}setIx(i=>i+1);setFlip(false)};
+
+if(!on)return html`<div class="fu">
+<h2 class="m" style=${{fontSize:18,fontWeight:800,marginBottom:6}}>🃏 Flashcard Drill</h2>
+<p style=${{fontSize:16,color:"#64748b",marginBottom:16}}>${qs.length?"Missed questions come back more often.":"Questions coming soon!"}</p>
+${qs.length>0&&html`<div>
+<div style=${{display:"flex",flexWrap:"wrap",gap:5,marginBottom:16}}>
+<button onClick=${()=>setCat("All")} style=${{padding:"6px 12px",borderRadius:16,fontSize:17,fontWeight:700,background:cat==="All"?"#2563eb20":"#ffffff",color:cat==="All"?"#2563eb":"#64748b",border:"1px solid "+(cat==="All"?"#2563eb44":"#e2e8f0")}}>All (${qs.length})</button>
+${CATS.map(c=>{const n=qs.filter(q=>q.cat===c).length;return n?html`<button onClick=${()=>setCat(c)} style=${{padding:"6px 12px",borderRadius:16,fontSize:17,fontWeight:700,background:cat===c?CC[c]+"20":"#ffffff",color:cat===c?CC[c]:"#64748b",border:"1px solid "+(cat===c?CC[c]+"44":"#e2e8f0")}}>${c} (${n})</button>`:null})}</div>
+<button onClick=${go} style=${{background:"linear-gradient(135deg,#7c3aed,#5b21b6)",color:"white",padding:"12px 32px",borderRadius:8,fontWeight:700}}>Start Drill</button>
+</div>`}</div>`;
+
+const cur=dk[ix];
+return html`<div class="fu" style=${{maxWidth:540,margin:"0 auto"}}>
+<div style=${{display:"flex",justifyContent:"space-between",marginBottom:12}}>
+<span class="m" style=${{fontSize:18,color:"#64748b"}}>${ix+1}/${dk.length}</span>
+<button onClick=${()=>setOn(false)} style=${{fontSize:17,color:"#64748b",background:"none",textDecoration:"underline"}}>End</button></div>
+<div onClick=${()=>!flip&&setFlip(true)} style=${{background:flip?"#1a1040":"#ffffff",border:"2px solid "+(flip?"#a78bfa":"#e2e8f0"),borderRadius:16,padding:36,minHeight:220,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",cursor:flip?"default":"pointer",textAlign:"center",transition:"all .3s"}}>
+<span style=${{fontSize:16,fontWeight:700,color:CC[cur.cat],marginBottom:12}}>${cur.cat} · ${cur.pts} pts</span>
+${!flip?html`<div>
+<p style=${{fontSize:17,lineHeight:1.5,fontWeight:700,marginBottom:14}}>${cur.q}</p>
+${cur.type==="mc"&&cur.options&&html`<div style=${{fontSize:18,color:"#64748b",textAlign:"left",width:"100%"}}>${cur.options.map((o,i)=>html`<div style=${{marginBottom:3}}>${["A","B","C","D"][i]}. ${o}</div>`)}</div>`}
+<p style=${{fontSize:17,color:"#94a3b8",marginTop:12}}>Tap to reveal</p>
+</div>`:html`<div class="fr">
+<p class="m" style=${{fontSize:16,fontWeight:700,color:"#a78bfa",marginBottom:10}}>ANSWER</p>
+<p style=${{fontSize:24,fontWeight:800,color:"#1e293b"}}>${ansText(cur)}</p></div>`}
+</div>
+${flip&&html`<div class="fu" style=${{display:"flex",gap:10,marginTop:16}}>
+<button onClick=${()=>mark(false)} style=${{flex:1,padding:12,borderRadius:10,fontSize:18,fontWeight:700,background:"#ef444418",color:"#ef4444",border:"1px solid #ef444433"}}>✗ Missed</button>
+<button onClick=${()=>mark(true)} style=${{flex:1,padding:12,borderRadius:10,fontSize:18,fontWeight:700,background:"#10b98118",color:"#10b981",border:"1px solid #10b98133"}}>✓ Got It</button>
+</div>`}
+</div>`;
+}
+
+// ═══ ASSESSMENT ═══
+function Assess({qs,players,addH,named}){
+const[ph,setPh]=useState("sel");
+const[pl,setPl]=useState("");
+const[dk,setDk]=useState([]);const[ix,setIx]=useState(0);
+const[answers,setAnswers]=useState([]);
+const[typed,setTyped]=useState("");const[mc,setMc]=useState(null);
+const[tm,setTm]=useState(15);const ref=useRef();
+const go=(list)=>{if(!pl||!list.length)return;setDk([...list].sort(()=>Math.random()-.5));setIx(0);setAnswers([]);setTyped("");setMc(null);setTm(15);setPh("play")};
+useEffect(()=>{if(ph==="play"&&tm>0)ref.current=setTimeout(()=>setTm(t=>t-1),1e3);else if(ph==="play"&&tm===0)submit();return()=>clearTimeout(ref.current)},[tm,ph,ix]);
+const submit=()=>{const q=dk[ix];let ua="",ok=false;
+if(q.type==="mc"&&q.options){ua=mc||"—";ok=mc===q.a}else{ua=typed.trim()||"—";const cl=s=>s.toLowerCase().replace(/[^a-z0-9\s]/g,"").trim(),uc=cl(ua),ac=cl(q.a);ok=uc===ac||ac.includes(uc)||uc.includes(ac);if(!ok)ok=ac.split(" ").filter(w=>w.length>3).some(w=>uc.includes(w))}
+setAnswers(p=>[...p,{i:ix,ua,ok,pts:q.pts,cat:q.cat}]);addH({player:pl,cat:q.cat,pts:ok?q.pts:0,correct:ok,mode:"assess"});
+if(ix+1>=dk.length)setPh("done");else{setIx(i=>i+1);setTyped("");setMc(null);setTm(15)}};
+
+if(ph==="sel")return html`<div class="fu">
+<h2 class="m" style=${{fontSize:18,fontWeight:800,marginBottom:6}}>📝 Assessment</h2>
+<p style=${{fontSize:16,color:"#64748b",marginBottom:16}}>15 seconds per question!</p>
+<label class="m" style=${{fontSize:18,fontWeight:700,color:"#2563eb",display:"block",marginBottom:6}}>WHO ARE YOU?</label>
+<div style=${{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(130px,1fr))",gap:6,marginBottom:20}}>
+${players.map(p=>html`<button onClick=${()=>setPl(p)} style=${{padding:13,borderRadius:8,fontSize:16,fontWeight:pl===p?700:500,background:pl===p?"#2563eb":"#ffffff",border:"2px solid "+(pl===p?"#2563eb":"#e2e8f0"),color:pl===p?"#ffffff":"#1a202c"}}>${p}</button>`)}</div>
+${named.length>0&&html`<div style=${{marginBottom:20}}>
+<label class="m" style=${{fontSize:18,fontWeight:700,color:"#ef4444",display:"block",marginBottom:8}}>ASSIGNED</label>
+${named.map((a,i)=>html`<button key=${i} onClick=${()=>pl&&go(a.questions)} disabled=${!pl} style=${{width:"100%",background:"#eff6ff",border:"1px solid #ef444433",borderRadius:10,padding:"14px 16px",textAlign:"left",color:"#1e293b",opacity:pl?1:.5,marginBottom:8}}>
+<div style=${{fontSize:18,fontWeight:700}}>${a.name}</div>
+<div style=${{fontSize:17,color:"#64748b"}}>${a.questions.length} questions</div></button>`)}</div>`}
+${qs.length>0&&html`<button onClick=${()=>pl&&go(qs)} disabled=${!pl} style=${{background:pl?"#e2e8f0":"#ffffff",color:pl?"#e2e8f0":"#475569",padding:"10px 20px",borderRadius:8,border:"1px solid #cbd5e1"}}>Random Practice (${qs.length} Qs)</button>`}
+</div>`;
+
+if(ph==="done"){const c=answers.filter(a=>a.ok).length,t=answers.length,p=t?Math.round(c/t*100):0,pts=answers.filter(a=>a.ok).reduce((s,a)=>s+a.pts,0);
+const byCat={};answers.forEach(a=>{if(!byCat[a.cat])byCat[a.cat]={c:0,t:0};byCat[a.cat].t++;if(a.ok)byCat[a.cat].c++});
+return html`<div class="fu" style=${{maxWidth:500,margin:"0 auto"}}>
+<div style=${{textAlign:"center",marginBottom:20}}>
+<div style=${{fontSize:52}}>${p>=80?"🔥":p>=60?"💪":"📚"}</div>
+<h2 class="m" style=${{fontSize:20,fontWeight:800,color:"#2563eb"}}>Done!</h2><p>${pl}</p>
+<div style=${{display:"flex",justifyContent:"center",gap:20,margin:"12px 0"}}>
+<div><div class="m" style=${{fontSize:28,fontWeight:800,color:"#2563eb"}}>${pts}</div><div style=${{fontSize:16,color:"#64748b"}}>pts</div></div>
+<div><div class="m" style=${{fontSize:28,fontWeight:800,color:"#10b981"}}>${c}/${t}</div><div style=${{fontSize:16,color:"#64748b"}}>correct</div></div>
+<div><div class="m" style=${{fontSize:28,fontWeight:800,color:p>=80?"#10b981":p>=50?"#2563eb":"#ef4444"}}>${p}%</div><div style=${{fontSize:16,color:"#64748b"}}>acc</div></div></div></div>
+<h3 class="m" style=${{fontSize:16,fontWeight:700,color:"#64748b",marginBottom:8}}>BY CATEGORY</h3>
+${Object.entries(byCat).map(([cat,s])=>{const cp=Math.round(s.c/s.t*100);return html`<div style=${{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderBottom:"1px solid #e2e8f0"}}>
+<span style=${{fontSize:18,fontWeight:700,color:CC[cat],minWidth:90}}>${cat}</span>
+<div style=${{flex:1,height:6,background:"#bfdbfe",borderRadius:3}}><div style=${{width:cp+"%",height:"100%",background:cp>=80?"#10b981":cp>=50?"#2563eb":"#ef4444",borderRadius:3}}/></div>
+<span class="m" style=${{fontSize:18,fontWeight:700,color:cp>=80?"#10b981":cp>=50?"#2563eb":"#ef4444"}}>${cp}%</span></div>`})}
+<h3 class="m" style=${{fontSize:16,fontWeight:700,color:"#64748b",margin:"16px 0 8px"}}>REVIEW</h3>
+${answers.map((a,i)=>{const q=dk[a.i];return html`<div style=${{background:"#eff6ff",border:"1px solid "+(a.ok?"#10b98133":"#ef444433"),borderRadius:8,padding:12,marginBottom:5}}>
+<div style=${{display:"flex",justifyContent:"space-between"}}><span style=${{fontSize:16,color:CC[q.cat],fontWeight:700}}>${q.cat}</span><span style=${{fontWeight:800,color:a.ok?"#10b981":"#ef4444"}}>${a.ok?"✓":"✗"}</span></div>
+<p style=${{fontSize:16,margin:"4px 0"}}>${q.q}</p>
+${!a.ok&&html`<p style=${{fontSize:18,color:"#ef4444"}}>You: ${a.ua}</p>`}
+<p style=${{fontSize:18,color:"#10b981",fontWeight:600}}>Answer: ${ansText(q)}</p></div>`})}
+<button onClick=${()=>setPh("sel")} style=${{marginTop:16,width:"100%",background:"#2563eb",color:"#060a12",padding:12,borderRadius:8,fontWeight:700}}>Done</button>
+</div>`}
+
+const cur=dk[ix];
+return html`<div class="fu">
+<div style=${{display:"flex",justifyContent:"space-between",marginBottom:8}}>
+<span class="m" style=${{fontSize:18,color:"#64748b"}}>Q ${ix+1}/${dk.length}</span>
+<span class="m" style=${{fontSize:18,fontWeight:700,color:"#10b981"}}>${answers.filter(a=>a.ok).length} correct</span></div>
+<div style=${{display:"flex",gap:10,alignItems:"center",marginBottom:12}}>
+<div style=${{flex:1,height:5,background:"#bfdbfe",borderRadius:3}}><div style=${{width:(tm/15*100)+"%",height:"100%",background:tm<=5?"#ef4444":tm<=10?"#2563eb":"#10b981",borderRadius:3,transition:"width 1s linear"}}/></div>
+<span class="m" style=${{fontSize:20,fontWeight:800,color:tm<=5?"#ef4444":"#2563eb"}}>${tm}s</span></div>
+<div style=${{background:"#eff6ff",borderRadius:14,padding:24,border:"1px solid "+(tm<=5?"#ef444444":"#e2e8f0"),marginBottom:16}}>
+<div style=${{display:"flex",gap:6,marginBottom:12}}>
+<span style=${{background:CC[cur.cat]+"20",color:CC[cur.cat],padding:"3px 10px",borderRadius:16,fontSize:17,fontWeight:700}}>${cur.cat}</span>
+<span style=${{background:"#2563eb20",color:"#2563eb",padding:"3px 8px",borderRadius:16,fontSize:17,fontWeight:700}}>${cur.pts} pts</span></div>
+<p style=${{fontSize:18,lineHeight:1.55,fontWeight:700,marginBottom:16}}>${cur.q}</p>
+${cur.type==="mc"&&cur.options?html`<div style=${{display:"grid",gap:6}}>
+${cur.options.map((o,i)=>{const l=["A","B","C","D"][i];return html`<button onClick=${()=>setMc(l)} style=${{padding:"12px 14px",borderRadius:8,fontSize:17,textAlign:"left",background:mc===l?"#2563eb22":"#e2e8f0",border:"2px solid "+(mc===l?"#2563eb":"#cbd5e1"),color:mc===l?"#2563eb":"#cbd5e1",fontWeight:mc===l?700:400}}>${l}. ${o}</button>`})}</div>`
+:html`<input value=${typed} onInput=${e=>setTyped(e.target.value)} onKeyDown=${e=>e.key==="Enter"&&typed.trim()&&submit()} placeholder="Type answer..." class="inp" style=${{fontSize:16}}/>`}
+</div>
+<button onClick=${submit} disabled=${cur.type==="mc"?!mc:!typed.trim()} style=${{width:"100%",padding:14,borderRadius:10,fontSize:18,fontWeight:800,background:(cur.type==="mc"?mc:typed.trim())?"#2563eb":"#e2e8f0",color:(cur.type==="mc"?mc:typed.trim())?"#060a12":"#64748b"}}>SUBMIT →</button>
+</div>`;
+}
+
+// ═══ BUILDER (coach) ═══
+function Build({addT,tQs,setT,aQs,setA,addAQ,named,setN}){
+const[bk,setBk]=useState("training");
+const[fm,setFm]=useState({cat:CATS[0],pts:10,type:"buzzer",q:"",a:"",options:["","","",""]});
+const curQs=bk==="assessment"?aQs:tQs,curSet=bk==="assessment"?setA:setT,curAdd=bk==="assessment"?addAQ:addT;
+const sub=()=>{if(!fm.q.trim()||!fm.a.trim())return;const q={cat:fm.cat,pts:fm.pts,type:fm.type,q:fm.q.trim(),a:fm.a.trim()};if(fm.type==="mc")q.options=fm.options.filter(o=>o.trim());curAdd(q);setFm(p=>({...p,q:"",a:"",options:["","","",""]}))};
+
+return html`<div class="fu">
+<h2 class="m" style=${{fontSize:18,fontWeight:800,marginBottom:12}}>✏️ Builder</h2>
+<div style=${{display:"flex",gap:6,marginBottom:14}}>
+<button onClick=${()=>setBk("training")} style=${{padding:"8px 16px",borderRadius:8,fontSize:16,fontWeight:700,background:bk==="training"?"#2563eb22":"#ffffff",border:"2px solid "+(bk==="training"?"#2563eb":"#e2e8f0"),color:bk==="training"?"#2563eb":"#64748b"}}>Training (${tQs.length})</button>
+<button onClick=${()=>setBk("assessment")} style=${{padding:"8px 16px",borderRadius:8,fontSize:16,fontWeight:700,background:bk==="assessment"?"#ef444422":"#ffffff",border:"2px solid "+(bk==="assessment"?"#ef4444":"#e2e8f0"),color:bk==="assessment"?"#ef4444":"#64748b"}}>Assessment (${aQs.length})</button></div>
+<div style=${{maxWidth:540}}>
+<div style=${{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:10}}>
+<select value=${fm.cat} onChange=${e=>setFm(p=>({...p,cat:e.target.value}))} class="inp" style=${{fontSize:18,padding:10}}>${CATS.map(c=>html`<option key=${c}>${c}</option>`)}</select>
+<select value=${fm.pts} onChange=${e=>setFm(p=>({...p,pts:+e.target.value}))} class="inp" style=${{fontSize:18,padding:10}}>${[5,10,15,20,25].map(v=>html`<option key=${v} value=${v}>${v}pts</option>`)}</select>
+<select value=${fm.type} onChange=${e=>setFm(p=>({...p,type:e.target.value}))} class="inp" style=${{fontSize:18,padding:10}}><option value="buzzer">Buzzer</option><option value="mc">MC</option><option value="fill">Fill</option></select></div>
+<textarea value=${fm.q} onInput=${e=>setFm(p=>({...p,q:e.target.value}))} placeholder="Question..." rows=${3} class="inp" style=${{marginBottom:8,resize:"vertical"}}/>
+${fm.type==="mc"&&html`<div style=${{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:8}}>
+${["A","B","C","D"].map((l,i)=>html`<input value=${fm.options[i]} onInput=${e=>{const o=[...fm.options];o[i]=e.target.value;setFm(p=>({...p,options:o}))}} placeholder=${"Option "+l} class="inp" style=${{fontSize:18,padding:10}}/>`)}</div>`}
+<input value=${fm.a} onInput=${e=>setFm(p=>({...p,a:e.target.value}))} placeholder=${fm.type==="mc"?"Correct letter":"Answer"} onKeyDown=${e=>e.key==="Enter"&&sub()} class="inp" style=${{marginBottom:10}}/>
+<button onClick=${sub} style=${{background:"#2563eb",color:"#060a12",padding:"10px 24px",borderRadius:8,fontWeight:700}}>Add Question</button></div>
+<div style=${{marginTop:20,maxHeight:400,overflowY:"auto"}}>${curQs.map((q,i)=>html`<div key=${q.id||i} style=${{background:"#eff6ff",border:"1px solid #93c5fd",borderRadius:8,padding:12,marginBottom:5,display:"flex",gap:8}}>
+<div style=${{flex:1}}><span style=${{fontSize:16,color:CC[q.cat],fontWeight:700}}>${q.cat} · ${q.pts}pts</span><p style=${{fontSize:18,margin:"2px 0"}}>${q.q}</p><p style=${{fontSize:17,color:"#10b981"}}>${q.a}</p></div>
+<button onClick=${()=>curSet(p=>p.filter((_,j)=>j!==i))} style=${{fontSize:17,color:"#ef4444",background:"#ef444415",padding:"4px 10px",borderRadius:6,alignSelf:"start",border:"1px solid #ef444433"}}>Del</button></div>`)}</div>
+</div>`;
+}
+
+// ═══ TEAM ═══
+function Team({players,setPlayers,hist}){
+const[ed,setEd]=useState(null);const[ev,setEv]=useState("");const[nn,setNn]=useState("");
+const days=Math.ceil((new Date("2026-07-31")-new Date())/864e5);
+const gs=n=>{const e=hist.filter(h=>h.player===n),c=e.filter(h=>h.correct),pts=c.reduce((s,h)=>s+(h.pts||0),0),acc=e.length?Math.round(c.length/e.length*100):0;
+let ses=0;if(e.length){ses=1;const sr=[...e].sort((a,b)=>(a.ts||0)-(b.ts||0));for(let i=1;i<sr.length;i++)if((sr[i].ts||0)-(sr[i-1].ts||0)>12e4)ses++}return{total:e.length,correct:c.length,pts,acc,ses}};
+const rk=players.map(p=>({name:p,...gs(p)})).filter(p=>p.total>0).sort((a,b)=>b.pts-a.pts);
+
+return html`<div class="fu">
+<div style=${{display:"flex",justifyContent:"space-between",flexWrap:"wrap",gap:12,marginBottom:20}}>
+<h2 class="m" style=${{fontSize:18,fontWeight:800}}>👥 Team</h2>
+<div style=${{background:"#2563eb10",border:"1px solid #2563eb33",borderRadius:10,padding:"10px 16px",textAlign:"center"}}>
+<div class="m" style=${{fontSize:24,fontWeight:800,color:"#2563eb"}}>${days}</div><div style=${{fontSize:16,color:"#64748b"}}>days to go</div></div></div>
+
+${rk.length>0&&html`<div style=${{marginBottom:24}}>
+<h3 class="m" style=${{fontSize:17,fontWeight:700,color:"#2563eb",marginBottom:12}}>LEADERBOARD</h3>
+${rk.map((p,i)=>html`<div class="fu" style=${{background:i===0?"#2563eb18":"#ffffff",border:"2px solid "+(i===0?"#2563eb":"#cbd5e1"),borderRadius:10,padding:"14px 18px",marginBottom:8}}>
+<div style=${{display:"flex",justifyContent:"space-between",marginBottom:6}}>
+<div style=${{display:"flex",gap:10,alignItems:"center"}}><span style=${{fontSize:20}}>${["🥇","🥈","🥉"][i]||"#"+(i+1)}</span><span style=${{fontWeight:800,fontSize:18,color:"#000000"}}>${p.name}</span></div>
+<span class="m" style=${{fontSize:24,fontWeight:800,color:i===0?"#2563eb":"#1a202c"}}>${p.pts}</span></div>
+<div style=${{display:"flex",gap:16,paddingLeft:38}}>
+<span><span class="m" style=${{fontSize:17,color:p.acc>=80?"#059669":p.acc>=50?"#2563eb":"#dc2626",fontWeight:700}}>${p.acc}%</span> <span style=${{fontSize:15,color:"#4b5563",fontWeight:700}}>acc</span></span>
+<span><span class="m" style=${{fontSize:17,color:"#0284c7",fontWeight:700}}>${p.ses}</span> <span style=${{fontSize:15,color:"#4b5563",fontWeight:700}}>sessions</span></span>
+</div></div>`)}</div>`}
+
+<h3 class="m" style=${{fontSize:17,fontWeight:700,color:"#64748b",marginBottom:10}}>PLAYERS</h3>
+<div style=${{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(240px,1fr))",gap:8,marginBottom:16}}>
+${players.map((p,i)=>html`<div style=${{background:"#eff6ff",border:"1px solid #93c5fd",borderRadius:10,padding:14}}>
+${ed===i?html`<div style=${{display:"flex",gap:6}}>
+<input value=${ev} onInput=${e=>setEv(e.target.value)} onKeyDown=${e=>{if(e.key==="Enter"&&ev.trim()){setPlayers(pr=>pr.map((x,j)=>j===i?ev.trim():x));setEd(null)}}} class="inp" style=${{fontSize:15}}/>
+<button onClick=${()=>{if(ev.trim())setPlayers(pr=>pr.map((x,j)=>j===i?ev.trim():x));setEd(null)}} style=${{background:"#10b981",color:"#060a12",padding:"10px 16px",borderRadius:8,fontWeight:700}}>Save</button></div>`
+:html`<div style=${{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+<span style=${{fontSize:16,fontWeight:700}}>${p}</span>
+<div style=${{display:"flex",gap:6}}>
+<button onClick=${()=>{setEd(i);setEv(p)}} style=${{fontSize:18,color:"#2563eb",background:"#2563eb15",padding:"8px 12px",borderRadius:6,fontWeight:700,border:"1px solid #2563eb33"}}>Edit</button>
+${players.length>1&&html`<button onClick=${()=>setPlayers(pr=>pr.filter((_,j)=>j!==i))} style=${{fontSize:18,color:"#ef4444",background:"#ef444415",padding:"8px 10px",borderRadius:6,border:"1px solid #ef444433"}}>×</button>`}
+</div></div>`}</div>`)}</div>
+${players.length<12&&html`<div style=${{display:"flex",gap:6}}>
+<input value=${nn} onInput=${e=>setNn(e.target.value)} placeholder="Add player..." onKeyDown=${e=>{if(e.key==="Enter"&&nn.trim()){setPlayers(p=>[...p,nn.trim()]);setNn("")}}} class="inp" style=${{maxWidth:240}}/>
+<button onClick=${()=>{if(nn.trim()){setPlayers(p=>[...p,nn.trim()]);setNn("")}}} style=${{background:"#2563eb",color:"#060a12",padding:"8px 16px",borderRadius:6,fontWeight:700}}>Add</button></div>`}
+</div>`;
+}
+
+ReactDOM.render(html`<${App}/>`,document.getElementById("root"));
+</script>
+</body>
+</html>
