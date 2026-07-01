@@ -1061,7 +1061,7 @@ const sP=sync("players",setPlayers);
 const sT=sync("training",setTrainQs);
 const sA=sync("assess",setAssessQs);
 const sN=sync("named",setNamed);
-const addH=(ev)=>{const entry={...ev,topic:ev.topic||getTopic(ev),ts:Date.now()};setHist(p=>{const n=[...p,entry];fbSet("hist",n);return n;});};
+const addH=(ev)=>{const entry={...ev,topic:ev.topic||getTopic(ev),ts:Date.now()};setHist(p=>[...p,entry]);db.ref("hist").push(entry).catch(e=>console.error(e));};
 const addT=(q)=>{const nq={...q,id:"t"+Date.now()+"_"+Math.random().toString(36).slice(2,5)};setTrainQs(p=>{const n=[...p,nq];fbSet("training",n);return n;});};
 const addAQ=(q)=>{const nq={...q,id:"a"+Date.now()+"_"+Math.random().toString(36).slice(2,5)};setAssessQs(p=>{const n=[...p,nq];fbSet("assess",n);return n;});};
 
