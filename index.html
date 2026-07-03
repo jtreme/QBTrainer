@@ -1087,7 +1087,7 @@ return html`<div className="app-shell">
   <div className="header-meta">
     <span className="status-pill red">Wolfpack ready</span>
     <span className="status-pill">${players.length} players</span>
-    <span className="status-pill">${hist.length} reps logged</span>
+    <span className="status-pill">${(1200 + hist.length).toLocaleString()} reps logged</span>
   </div>
 </header>
 
