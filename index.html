@@ -3206,9 +3206,9 @@ ${qs.length>0&&html`<div>
 <label class="m" style=${{fontSize:18,fontWeight:700,color:"#2563eb",display:"block",marginBottom:6}}>WHO ARE YOU?</label>
 <div style=${{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(130px,1fr))",gap:6,marginBottom:16}}>
 ${players.map(p=>html`<button onClick=${()=>setPl(p)} style=${{padding:13,borderRadius:8,fontSize:16,fontWeight:pl===p?700:500,background:pl===p?"#2563eb":"#ffffff",border:"2px solid "+(pl===p?"#2563eb":"#e2e8f0"),color:pl===p?"#ffffff":"#1a202c"}}>${p}</button>`)}</div>
-<div style=${{display:"flex",flexWrap:"wrap",gap:5,marginBottom:10}}>
-${SRCS.map(sname=>{const n=sname==="All"?qs.length:(sname==="Core"?qs.filter(q=>!q.src).length:qs.filter(q=>q.src===sname).length);return html`<button onClick=${()=>setSrcF(sname)} style=${{padding:"7px 12px",borderRadius:12,fontSize:15,fontWeight:700,background:srcF===sname?"#2563eb":"#ffffff",color:srcF===sname?"#ffffff":"#64748b",border:"1px solid "+(srcF===sname?"#2563eb":"#e2e8f0")}}>${sname} (${n})</button>`;})}
-</div>
+${qs.some(q=>q.src)&&html`<div style=${{display:"flex",flexWrap:"wrap",gap:5,marginBottom:10}}>
+${SRCS.map(sname=>{const n=sname==="All"?qs.length:(sname==="Core"?qs.filter(q=>!q.src).length:qs.filter(q=>q.src===sname).length);return n===0?null:html`<button onClick=${()=>setSrcF(sname)} style=${{padding:"7px 12px",borderRadius:12,fontSize:15,fontWeight:700,background:srcF===sname?"#2563eb":"#ffffff",color:srcF===sname?"#ffffff":"#64748b",border:"1px solid "+(srcF===sname?"#2563eb":"#e2e8f0")}}>${sname} (${n})</button>`;})}
+</div>`}
 <div style=${{display:"flex",flexWrap:"wrap",gap:5,marginBottom:14}}>
 ${CATS.map(c=>html`<button onClick=${()=>setCats(p=>p.includes(c)?p.filter(x=>x!==c):[...p,c])} style=${{padding:"8px 10px",borderRadius:12,fontSize:16,fontWeight:700,background:cats.includes(c)?CC[c]+"20":"#ffffff",color:cats.includes(c)?CC[c]:"#64748b",border:"1px solid "+(cats.includes(c)?CC[c]+"44":"#e2e8f0")}}>${c} (${qv.filter(q=>q.cat===c).length})</button>`)}</div>
 <button onClick=${go} disabled=${!pl} style=${{background:pl?"#2563eb":"#e2e8f0",color:pl?"#060a12":"#64748b",padding:"12px 32px",borderRadius:8,fontSize:17,fontWeight:700}}>${pl?"Start as "+pl:"Select name"}</button>
