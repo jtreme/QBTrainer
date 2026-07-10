@@ -32,7 +32,7 @@ button{cursor:pointer;border:none;font-family:inherit;transition:transform .14s 
 if(typeof htm==="undefined"){document.getElementById("root").innerHTML='<div style="color:#2563eb;padding:40px;text-align:center;font-family:sans-serif"><h2>Loading issue</h2><p>Please refresh the page. If this persists, try a different browser.</p></div>';}
 const h=React.createElement;
 const html=htm.bind(h);
-const{useState,useEffect,useRef,useCallback}=React;
+const{useState,useEffect,useRef,useCallback,useMemo}=React;
 
 // ═══ FIREBASE ═══
 firebase.initializeApp({apiKey:"AIzaSyCZ8gMn3BYM-sCHZyoOpd8ezT5mYlePX30",authDomain:"quiz-bowl-trainer.firebaseapp.com",databaseURL:"https://quiz-bowl-trainer-default-rtdb.firebaseio.com",projectId:"quiz-bowl-trainer",storageBucket:"quiz-bowl-trainer.firebasestorage.app",messagingSenderId:"527588997660",appId:"1:527588997660:web:9b00faa0997ef4c37cbdd9"});
@@ -2534,6 +2534,16 @@ const SESSIONS=[
 {name:"2026 SAEA",questions:ASSESS.filter(q=>q.src==="26 SAEA")},
 ];
 
+// Sessions are stored in Firebase as {name, qids:[...]} (ids only) to keep the
+// "named" node small — every client downloads it on mount, before touching any
+// feature. Questions resolve against the live pool at render time (one source of
+// truth), so editing a question no longer leaves a stale embedded copy.
+const SESSIONS_MINI=SESSIONS.map(s=>({name:s.name,qids:s.questions.map(q=>q.id)}));
+const resolveSessions=(mini,pool)=>{
+  const byId=new Map(pool.map(q=>[q.id,q]));
+  return (mini||[]).map(s=>({name:s.name,questions:(s.qids||[]).map(id=>byId.get(id)).filter(Boolean)}));
+};
+
 // ═══ HELPERS ═══
 const e=h;const S=(t,p,...c)=>e(t,p,...c);
 const D=({children,...p})=>e("div",p,children);
@@ -2943,7 +2953,7 @@ const[pwErr,setPwErr]=useState(false);
 const[players,setPlayers]=useState(["Player 1","Player 2","Player 3","Player 4","Player 5","Player 6","Player 7","Player 8"]);
 const[trainQs,setTrainQs]=useState([...TRAIN]);
 const[assessQs,setAssessQs]=useState([...ASSESS]);
-const[named,setNamed]=useState([]);
+const[namedRaw,setNamedRaw]=useState([]);
 const[hist,setHist]=useState([]);
 const[flash,setFlash]=useState(()=>ld("flash",{}));
 const[ready,setReady]=useState(false);
@@ -2962,9 +2972,15 @@ r.players.on("value",s=>{const v=s.val();if(v){const a=Array.isArray(v)?v:Object
 r.training.on("value",s=>{const v=s.val();if(v){const a=Array.isArray(v)?v:Object.values(v);if(a.length){const ids=new Set(a.map(q=>q.id));setTrainQs([...a,...TRAIN.filter(q=>!ids.has(q.id))]);}}});
 r.assess.on("value",s=>{const v=s.val();if(v){const a=Array.isArray(v)?v:Object.values(v);if(a.length){const ids=new Set(a.map(q=>q.id));setAssessQs([...a,...ASSESS.filter(q=>!ids.has(q.id))]);}}});
 r.named.on("value",s=>{const v=s.val();if(v){const a=Array.isArray(v)?v:Object.values(v);
-  // Firebase converts nested arrays to objects — normalize questions arrays back
-  const normalized=a.map(sess=>({...sess,questions:Array.isArray(sess.questions)?sess.questions:Object.values(sess.questions||{})}));
-  setNamed(normalized);}});
+  // Firebase converts nested arrays to objects — normalize back to a qids array.
+  // Also tolerate the legacy fat format ({questions:[...]}) by extracting ids.
+  const normalized=a.map(sess=>{
+    let qids=sess.qids;
+    if(!qids&&sess.questions){const qq=Array.isArray(sess.questions)?sess.questions:Object.values(sess.questions);qids=qq.map(q=>q&&q.id).filter(Boolean);}
+    qids=Array.isArray(qids)?qids:Object.values(qids||{});
+    return {name:sess.name,qids};
+  });
+  setNamedRaw(normalized);}});
 r.hist.on("value",s=>{const v=s.val();if(v){const a=Array.isArray(v)?v:Object.values(v);setHist(a);}});
 
 // Seed Firebase: prefer localStorage data over defaults
@@ -2991,13 +3007,13 @@ db.ref("assess").once("value",s=>{
     fbSet("assess",a);
   }
 });
-db.ref("named").once("value",s=>{if(!s.val())fbSet("named",SESSIONS);});
+db.ref("named").once("value",s=>{if(!s.val())fbSet("named",SESSIONS_MINI);});
 // Session version check: if Firebase has an older session set, push the new one.
-// Bump SESSIONS_VERSION whenever the SESSIONS array changes.
-const SESSIONS_VERSION=3;
+// Bump SESSIONS_VERSION whenever the SESSIONS array (or its storage format) changes.
+const SESSIONS_VERSION=4;
 db.ref("sessionsVersion").once("value",s=>{
   if((s.val()||0)<SESSIONS_VERSION){
-    fbSet("named",SESSIONS);
+    fbSet("named",SESSIONS_MINI);
     fbSet("sessionsVersion",SESSIONS_VERSION);
   }
 });
@@ -3007,11 +3023,14 @@ return()=>Object.values(r).forEach(x=>x.off());
 
 useEffect(()=>sv("flash",flash),[flash]);
 
+// Resolve the id-only sessions from Firebase against the live question pool.
+// Recomputes whenever the pool or the stored session list changes, so sessions
+// always reflect the current questions (single source of truth).
+const named=useMemo(()=>resolveSessions(namedRaw,[...trainQs,...assessQs]),[namedRaw,trainQs,assessQs]);
 const sync=(path,setter)=>(fn)=>{const v=typeof fn==="function"?fn(path==="players"?players:path==="training"?trainQs:path==="assess"?assessQs:named):fn;setter(v);fbSet(path,v);};
 const sP=sync("players",setPlayers);
 const sT=sync("training",setTrainQs);
 const sA=sync("assess",setAssessQs);
-const sN=sync("named",setNamed);
 const addH=(ev)=>{const entry={...ev,topic:ev.topic||getTopic(ev),ts:Date.now()};setHist(p=>[...p,entry]);db.ref("hist").push(entry).catch(e=>console.error(e));};
 const addT=(q)=>{const nq={...q,id:"t"+Date.now()+"_"+Math.random().toString(36).slice(2,5)};setTrainQs(p=>{const n=[...p,nq];fbSet("training",n);return n;});};
 const addAQ=(q)=>{const nq={...q,id:"a"+Date.now()+"_"+Math.random().toString(36).slice(2,5)};setAssessQs(p=>{const n=[...p,nq];fbSet("assess",n);return n;});};
@@ -3054,7 +3073,7 @@ ${tab==="flash"&&html`<${Flash} qs=${trainQs} prog=${flash} setProg=${setFlash}/
 ${tab==="assess"&&html`<${Assess} qs=${assessQs} players=${players} addH=${addH} named=${named}/>`}
 ${tab==="facts"&&html`<${FactCards}/>`}
 ${tab==="dash"&&coach&&html`<${CoachDash} players=${players} hist=${hist} trainQs=${trainQs} assessQs=${assessQs} named=${named}/>`}
-${tab==="build"&&coach&&html`<${Build} addT=${addT} tQs=${trainQs} setT=${sT} aQs=${assessQs} setA=${sA} addAQ=${addAQ} named=${named} setN=${sN}/>`}
+${tab==="build"&&coach&&html`<${Build} addT=${addT} tQs=${trainQs} setT=${sT} aQs=${assessQs} setA=${sA} addAQ=${addAQ}/>`}
 ${tab==="team"&&html`<${Team} players=${players} setPlayers=${sP} hist=${hist}/>`}
 ${tab==="coach"&&!coach&&html`<div className="fu section-card" style=${{maxWidth:390,margin:"18px auto",textAlign:"center"}}>
 <div style=${{fontSize:44,marginBottom:8}}>🔒</div>
@@ -3363,6 +3382,7 @@ return html`<div class="fu">
 <span style=${{background:"#2563eb20",color:"#2563eb",padding:"3px 8px",borderRadius:16,fontSize:17,fontWeight:700}}>${cur.pts} pts</span>
 ${isNewQ(cur.id)&&newBadge()}</div>
 <p style=${{fontSize:18,lineHeight:1.55,fontWeight:700,marginBottom:16}}>${cur.q}</p>
+${qImg(cur)}
 ${cur.type==="mc"&&cur.options?html`<div style=${{display:"grid",gap:6}}>
 ${cur.options.map((o,i)=>{const l=["A","B","C","D"][i];return html`<button onClick=${()=>setMc(l)} style=${{padding:"12px 14px",borderRadius:8,fontSize:17,textAlign:"left",background:mc===l?"#2563eb22":"#e2e8f0",border:"2px solid "+(mc===l?"#2563eb":"#cbd5e1"),color:mc===l?"#2563eb":"#cbd5e1",fontWeight:mc===l?700:400}}>${l}. ${o}</button>`})}</div>`
 :html`<input value=${typed} onInput=${e=>setTyped(e.target.value)} onKeyDown=${e=>e.key==="Enter"&&typed.trim()&&submit()} placeholder="Type answer..." class="inp" style=${{fontSize:16}}/>`}
@@ -3460,7 +3480,7 @@ ${topicRows.length?topicRows.slice(0,10).map(r=>html`<div style=${{display:"flex
 }
 
 // ═══ BUILDER (coach) ═══
-function Build({addT,tQs,setT,aQs,setA,addAQ,named,setN}){
+function Build({addT,tQs,setT,aQs,setA,addAQ}){
 const[bk,setBk]=useState("training");
 const[fm,setFm]=useState({cat:CATS[0],topic:"",pts:10,type:"buzzer",q:"",a:"",options:["","","",""]});
 const curQs=bk==="assessment"?aQs:tQs,curSet=bk==="assessment"?setA:setT,curAdd=bk==="assessment"?addAQ:addT;
