@@ -2515,19 +2515,23 @@ const ASSESS=[
 
 // ══ NAMED SESSIONS ══
 const SESSIONS=[
-{name:"Session 1: Micro — Supply, Demand & Elasticity",questions:TRAIN.filter(q=>q.cat==="Microeconomics"&&(q.id.startsWith("sd")||q.id.startsWith("el")||["r1","r2","r3","r4","r5","r6","r7","r8"].includes(q.id))).slice(0,25)},
+{name:"Session 1: Micro — Supply, Demand & Elasticity",questions:[...TRAIN.filter(q=>q.cat==="Microeconomics"&&(q.id.startsWith("sd")||q.id.startsWith("el")||["r1","r2","r3","r4","r5","r6","r7","r8"].includes(q.id))).slice(0,25),...ASSESS.filter(q=>q.src&&(q.cat==="Microeconomics"))]},
 {name:"Session 2: Micro — Costs, Structures & Welfare",questions:TRAIN.filter(q=>q.cat==="Microeconomics"&&(q.id.startsWith("cc")||q.id.startsWith("ms")||q.id.startsWith("wf")||q.id.startsWith("ct")||["r9","r10","r11","r12","r13","r14","r15","r16","r17"].includes(q.id))).slice(0,25)},
-{name:"Session 3: Macro — GDP, Unemployment & Interest Rates",questions:TRAIN.filter(q=>q.cat==="Macroeconomics"&&(q.id.startsWith("gd")||q.id.startsWith("un")||q.id.startsWith("ir")||["r30","r31","r32","r33","r34","r37","r40","r51"].includes(q.id))).slice(0,25)},
+{name:"Session 3: Macro — GDP, Unemployment & Interest Rates",questions:[...TRAIN.filter(q=>q.cat==="Macroeconomics"&&(q.id.startsWith("gd")||q.id.startsWith("un")||q.id.startsWith("ir")||["r30","r31","r32","r33","r34","r37","r40","r51"].includes(q.id))).slice(0,25),...ASSESS.filter(q=>q.src&&(q.cat==="Macroeconomics"))]},
 {name:"Session 4: Macro — Policy, Money & Current Events",questions:TRAIN.filter(q=>q.cat==="Macroeconomics"&&!q.id.startsWith("gd")&&!q.id.startsWith("un")&&!q.id.startsWith("ir")).slice(0,30)},
-{name:"Session 5: Finance & Accounting",questions:TRAIN.filter(q=>q.cat==="Agribusiness/Finance").slice(0,25)},
-{name:"Session 6: Marketing & Management",questions:[...TRAIN.filter(q=>q.cat==="Marketing").slice(0,13),...TRAIN.filter(q=>q.cat==="Management").slice(0,12)]},
+{name:"Session 5: Finance & Accounting",questions:[...TRAIN.filter(q=>q.cat==="Agribusiness/Finance").slice(0,25),...ASSESS.filter(q=>q.src&&(q.cat==="Agribusiness/Finance"))]},
+{name:"Session 6: Marketing & Management",questions:[...[...TRAIN.filter(q=>q.cat==="Marketing").slice(0,13),...TRAIN.filter(q=>q.cat==="Management").slice(0,12)],...ASSESS.filter(q=>q.src&&(q.cat==="Marketing"||q.cat==="Management"))]},
 {name:"Session 7A: Equation Drills — MR, TC, MC",questions:TRAIN.filter(q=>q.id.startsWith("mr")||q.id.startsWith("tc")||q.id.startsWith("eq")).slice(0,30)},
-{name:"Session 7B: Equation Drills — Supply, Demand & Elasticity Math",questions:TRAIN.filter(q=>q.cat==="Quantitative"&&(q.id.startsWith("sd")||q.id.startsWith("eq")||["r116","r117","r118","r119","r121","r122","r128","r133","r136","r137","r138","r140","r141","r143","r145"].includes(q.id))).slice(0,30)},
+{name:"Session 7B: Equation Drills — Supply, Demand & Elasticity Math",questions:[...TRAIN.filter(q=>q.cat==="Quantitative"&&(q.id.startsWith("sd")||q.id.startsWith("eq")||["r116","r117","r118","r119","r121","r122","r128","r133","r136","r137","r138","r140","r141","r143","r145"].includes(q.id))).slice(0,30),...ASSESS.filter(q=>q.src&&(q.cat==="Quantitative"))]},
 {name:"Session 7C: Regression & Stats",questions:TRAIN.filter(q=>q.id.startsWith("reg")||["r127","r130","r135","sa11","sa12","sa13","sa14","sa15","sa16","sa17"].includes(q.id)).slice(0,25)},
-{name:"Session 8A: Resource Policy & Externalities",questions:TRAIN.filter(q=>q.cat==="Resource/Policy"&&(q.id.startsWith("mf")||["r91","r93","r94","r95","r96","r97","r98","r100","r101","r104","r106","r107","r108","r109","r111","r112","r113","r114","r115","sa37","sa38","sa39"].includes(q.id))).slice(0,25)},
+{name:"Session 8A: Resource Policy & Externalities",questions:[...TRAIN.filter(q=>q.cat==="Resource/Policy"&&(q.id.startsWith("mf")||["r91","r93","r94","r95","r96","r97","r98","r100","r101","r104","r106","r107","r108","r109","r111","r112","r113","r114","r115","sa37","sa38","sa39"].includes(q.id))).slice(0,25),...ASSESS.filter(q=>q.src&&(q.cat==="Resource/Policy"))]},
 {name:"Session 8B: Farm Policy — Farm Bill, FSMA & Rescue Programs",questions:TRAIN.filter(q=>q.id.startsWith("fb")||q.id.startsWith("fsma")||q.id.startsWith("bba")||["sa33","sa34","sa35","sa36"].includes(q.id)).slice(0,30)},
 {name:"Session 9: Famous Economists & Big Ideas",questions:TRAIN.filter(q=>/^e[0-9]/.test(q.id)||/^ec[0-9]/.test(q.id)).slice(0,25)},
 {name:"Session 10: Mixed Review",questions:[...TRAIN].sort(()=>Math.random()-.5).slice(0,30)},
+{name:"Session 11: Potpourri & Current Events",questions:[...TRAIN.filter(q=>q.cat==="Potpourri"),...ASSESS.filter(q=>q.src&&q.cat==="Potpourri")]},
+{name:"2024 SAEA",questions:ASSESS.filter(q=>q.src==="24 SAEA")},
+{name:"2025 SAEA",questions:ASSESS.filter(q=>q.src==="25 SAEA")},
+{name:"2026 SAEA",questions:ASSESS.filter(q=>q.src==="26 SAEA")},
 ];
 
 // ═══ HELPERS ═══
@@ -2990,7 +2994,7 @@ db.ref("assess").once("value",s=>{
 db.ref("named").once("value",s=>{if(!s.val())fbSet("named",SESSIONS);});
 // Session version check: if Firebase has an older session set, push the new one.
 // Bump SESSIONS_VERSION whenever the SESSIONS array changes.
-const SESSIONS_VERSION=2;
+const SESSIONS_VERSION=3;
 db.ref("sessionsVersion").once("value",s=>{
   if((s.val()||0)<SESSIONS_VERSION){
     fbSet("named",SESSIONS);
