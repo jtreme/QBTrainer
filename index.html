@@ -3361,10 +3361,11 @@ const[answers,setAnswers]=useState([]);
 const[typed,setTyped]=useState("");const[mc,setMc]=useState(null);
 const[tm,setTm]=useState(15);const ref=useRef();
 const[fb,setFb]=useState(null); // feedback shown between questions: {ua, ok}
+const rq=useRef({}); // spaced retrieval: how many times each missed qid has been requeued (cap 2)
 const go=(list)=>{
   const arr=Array.isArray(list)?list:Object.values(list||{});
   if(!pl||!arr.length)return;
-  setDk([...arr].sort(()=>Math.random()-.5));setIx(0);setAnswers([]);setTyped("");setMc(null);setTm(15);setFb(null);setPh("play")
+  rq.current={};setDk([...arr].sort(()=>Math.random()-.5));setIx(0);setAnswers([]);setTyped("");setMc(null);setTm(15);setFb(null);setPh("play")
 };
 useEffect(()=>{if(ph==="play"&&!fb&&tm>0)ref.current=setTimeout(()=>setTm(t=>t-1),1e3);else if(ph==="play"&&!fb&&tm===0)submit();return()=>clearTimeout(ref.current)},[tm,ph,ix,fb]);
 // Records the answer exactly as before (same Firebase hist format), then shows
@@ -3372,9 +3373,15 @@ useEffect(()=>{if(ph==="play"&&!fb&&tm>0)ref.current=setTimeout(()=>setTm(t=>t-1
 const record=(ua,ok)=>{const q=dk[ix];
 setAnswers(p=>[...p,{i:ix,ua,ok,pts:q.pts,cat:q.cat,topic:getTopic(q)}]);addH({player:pl,qid:q.id,q:q.q,cat:q.cat,topic:getTopic(q),pts:ok?q.pts:0,correct:ok,mode:"assess"});
 if(addFlash)addFlash(q.id,ok);
+// Spaced retrieval: if missed, drop this same question back into the deck 10-15
+// questions ahead so the student has to produce it again. Cap at 2 requeues per
+// question (so it appears at most 3 times) to avoid trapping anyone in a loop.
+if(!ok){const seen=rq.current[q.id]||0;if(seen<2){rq.current[q.id]=seen+1;
+const gap=10+Math.floor(Math.random()*6);
+setDk(d=>{const nd=[...d];nd.splice(Math.min(nd.length,ix+gap+1),0,q);return nd;});}}
 clearTimeout(ref.current);setFb({ua,ok});};
 const submit=()=>{if(fb)return;const q=dk[ix];let ua="",ok=false;
-if(q.type==="mc"&&q.options){ua=mc||"—";ok=mc===q.a}else{ua=typed.trim()||"—";const cl=s=>s.toLowerCase().replace(/[^a-z0-9\s]/g,"").trim(),uc=cl(ua),ac=cl(q.a);ok=uc===ac||ac.includes(uc)||uc.includes(ac);if(!ok)ok=ac.split(" ").filter(w=>w.length>3).some(w=>uc.includes(w))}
+if(q.type==="mc"&&q.options){ua=mc||"—";ok=mc===q.a}else{ua=typed.trim()||"—";const cl=s=>s.toLowerCase().replace(/[^a-z0-9\s]/g,"").trim(),uc=cl(ua),ac=cl(q.a);ok=uc.length>0&&(uc===ac||ac.includes(uc)||uc.includes(ac));if(!ok)ok=ac.split(" ").filter(w=>w.length>3).some(w=>uc.includes(w))}
 record(ua,ok)};
 const pass=()=>{if(fb)return;record("(passed)",false)};
 const next=()=>{setFb(null);if(ix+1>=dk.length)setPh("done");else{setIx(i=>i+1);setTyped("");setMc(null);setTm(15)}};
