@@ -2589,7 +2589,7 @@ const topicFromId=(id="",cat="")=>{
 const getTopic=(q={})=>{
   if(q.topic)return q.topic;
   const id=q.id||q.qid||"",cat=q.cat||"",t=((q.q||"")+" "+(q.a||"")).toLowerCase();
-  const fromId=topicFromId(id,cat); if(fromId!==cat&&fromId!=="Uncategorized")return fromId;
+  const fromId=topicFromId(id,cat); if(fromId!==cat&&fromId!=="Uncategorized"&&fromId!=="Marketing basics"&&fromId!=="Finance & accounting basics")return fromId;
   if(cat==="Microeconomics"){
     if(/comparative advantage|absolute advantage|willing to give up|production possibilities|\bppf\b/.test(t))return "Trade & comparative advantage";
     if(/risk averse|risk lover|risk neutral|expected utility|certainty equivalent/.test(t))return "Risk & uncertainty";
@@ -2611,10 +2611,16 @@ const getTopic=(q={})=>{
     return "Business cycles & growth";
   }
   if(cat==="Agribusiness/Finance"){
-    if(/balance sheet|income statement|accounts|asset|liabil|equity|ratio|cash ratio|common-size|receivable|inventory|dividends|retained earnings/.test(t))return "Accounting & ratios";
-    if(/npv|irr|payback|profitability|capital budgeting|cash flow|sunk|salvage/.test(t))return "Capital budgeting";
-    if(/bank|loan|fdic|credit|five cs|default|collateral|character/.test(t))return "Banking & credit";
-    if(/option|forward|futures|stock|bond|ipo|secondary|primary|market|securities|shares/.test(t))return "Markets & instruments";
+    if(/dirti|asset fixity|crop budget|enterprise budget|crush spread|carrying cost|\bbasis\b|cash rent|farm income|whole.farm|partial budget/.test(t))return "Ag finance & farm budgets";
+    if(/rule of 72|compound interest|future value|present value|\bannuity\b|\bapr\b|interest on interest|time value|double your money|discounting/.test(t))return "Time value of money & interest";
+    if(/\bnpv\b|\birr\b|payback|profitability index|capital budgeting|discounted cash flow|hurdle rate|sunk cost|mutually exclusive|salvage/.test(t))return "Capital budgeting";
+    if(/option|call option|\bput option\b|straddle|forward contract|futures|\bbeta\b|capm|capital asset pricing|diversif|portfolio|systematic risk|unsystematic|volatility|hedge|expiration|exercise price|strike price/.test(t))return "Risk, portfolio & derivatives";
+    if(/\bstock|\bbond|mutual fund|\bipo\b|shares|securities|preferred stock|common stock|par value|secondary market|primary market|dividend yield|money market|broker|proxy/.test(t))return "Stocks, bonds & securities";
+    if(/\bbank|\bloan|fdic|five cs|collateral|factoring|line of credit|default|creditworth|lessor|lessee|lease|revolving credit/.test(t))return "Banking, credit & leasing";
+    if(/\bratio\b|current ratio|quick ratio|acid.test|liquidity|solvenc|activity ratio|profitability ratio|debt.to.equity|debt ratio|profit margin|return on equity|return on assets|\broe\b|\broa\b|common.size|price.earnings|p\/e|turnover|cash cycle|operating margin|break.even|operating leverage/.test(t))return "Financial ratios & analysis";
+    if(/balance sheet|income statement|financial statement|statement of financial position|accounting equation|working capital|retained earnings|prepaid|cash flow statement|gross margin|payable|receivable|pro forma|going concern/.test(t))return "Financial statements";
+    if(/depreciat|amortiz|intangible asset|fixed asset|book value|goodwill|useful life|straight.line|liquid asset|current asset/.test(t))return "Assets & depreciation";
+    if(/corporation|sole proprietor|partnership|\bllc\b|c corp|s corp|articles of incorporation|capital structure|unlimited liability|limited liability|\bmerger|acquisition|dividend|\btax\b|fiduciary/.test(t))return "Business structure, taxes & dividends";
     return "Finance basics";
   }
   if(cat==="Resource/Policy"){
@@ -2641,11 +2647,15 @@ const getTopic=(q={})=>{
     return "Quantitative basics";
   }
   if(cat==="Marketing"){
-    if(/segmentation|psychographic|demographic|geographic|target/.test(t))return "Segmentation & targeting";
-    if(/brand|product|packaging|line|mix|extension|identity|service/.test(t))return "Product & branding";
-    if(/price|pricing|markup|skimming|penetration|reference|zone|3\/10/.test(t))return "Pricing";
-    if(/promotion|advertising|personal selling|public relations|pull|communications/.test(t))return "Promotion";
-    if(/distribution|channel|captain|supply chain|selective|exclusive|intensive/.test(t))return "Distribution";
+    if(/life ?cycle|\bplc\b|introduction stage|growth stage|maturity stage|decline stage|harvest strateg|\bbcg\b|boston consulting|cash cow|\bstars?\b|question mark|diffusion|rate of adoption|revival|reintroduce/.test(t))return "Product life cycle & BCG";
+    if(/segment|psychographic|demographic|geographic|behavioral|target market|targeting|positioning|evoked set|perceptual|consideration set|undifferentiated|mass marketing/.test(t))return "Segmentation, targeting & positioning";
+    if(/reference group|opinion leader|adopter|innovator|early adopt|laggard|impulse|convenience good|shopping good|specialty good|unsought|\bculture\b|subculture|consumerism|buying behavior|consumer behavior|need\b|want\b/.test(t))return "Consumer behavior & adoption";
+    if(/price|pricing|markup|skimming|penetration|bundl|reference price|cost-plus|odd-even|psychological pric|premium price|loss leader|dumping|3\/10/.test(t))return "Pricing";
+    if(/promotion|advertis|public relations|personal selling|sales promotion|publicity|pull strateg|push strateg|product placement|jingle|slogan|communications|silent salesman|telemarketing/.test(t))return "Promotion & advertising";
+    if(/distribution|channel|supply chain|intermediar|wholesal|retail|logistics|transportation|exclusive|selective distribution|intensive distribution|place utility|specialty store|convenience store|supermarket|bodega/.test(t))return "Distribution & channels";
+    if(/brand|logo|co-brand|private label|generic|trademark|equity|loyalty|umbrella|family brand|slotting|dealer brand|manufacturer brand/.test(t))return "Branding";
+    if(/product mix|product line|line depth|line width|line length|line extension|assortment|intangib|\bservice\b|services\b|physical evidence|perishab|warranty|form utility|time utility|possession utility/.test(t))return "Product & service decisions";
+    if(/marketing mix|4 ?ps|four ps|myopia|orientation|ansoff|production era|marketing concept|foreign market|export|marketing metric|environmental scan/.test(t))return "Marketing concepts & the 4 Ps";
     return "Marketing basics";
   }
   if(cat==="Management"){
@@ -3483,6 +3493,8 @@ const TOPIC_CATS=[
   {cat:"Macroeconomics",emoji:"🌐",color:"#3b82f6",label:"Macroeconomics"},
   {cat:"Resource/Policy",emoji:"🌾",color:"#a855f7",label:"Resource & Policy"},
   {cat:"Quantitative",emoji:"🧮",color:"#f59e0b",label:"Quantitative"},
+  {cat:"Marketing",emoji:"📣",color:"#ec4899",label:"Marketing"},
+  {cat:"Agribusiness/Finance",emoji:"💰",color:"#10b981",label:"Finance & Accounting"},
 ];
 function TopicDrill({trainQs,assessQs,players,addH,addFlash}){
 const[cat,setCat]=useState(null);
