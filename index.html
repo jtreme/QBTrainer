@@ -3552,6 +3552,7 @@ ${TOPIC_CATS.map(c=>{const n=c.only?allQs.filter(q=>q.cat===c.cat&&getTopic(q)==
 // ═══ COACH DASHBOARD ═══
 function CoachDash({players,hist,trainQs,assessQs,named}){
 const[windowDays,setWindowDays]=useState(14);
+const[selPlayer,setSelPlayer]=useState(players[0]||"");
 const cutoff=Date.now()-windowDays*864e5;
 const recent=hist.filter(h=>(h.ts||0)>=cutoff);
 const allQs=[...trainQs,...assessQs];
@@ -3621,6 +3622,31 @@ return html`<div class="fu">
 <td style=${{padding:8,fontWeight:800}}>${p.name}</td><td>${p.activeDays}</td><td>${p.week}</td><td>${p.total}</td><td>${p.total?p.acc+"%":"—"}</td><td>${p.weak}${p.weakAcc!==null?" ("+p.weakAcc+"%)":""}</td><td>${p.last?shortDate(p.last):"Never"}</td>
 </tr>`)}</tbody></table>
 ${inactive.length>0&&html`<div style=${{marginTop:10,background:"#fef2f2",border:"1px solid #fecaca",borderRadius:8,padding:10,color:"#991b1b",fontSize:16}}><b>Check-in list:</b> ${inactive.map(p=>p.name).join(", ")}</div>`}
+</section>
+
+<section style=${{background:"#ffffff",border:"1px solid #cbd5e1",borderRadius:12,padding:14,marginBottom:18}}>
+<div style=${{display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,flexWrap:"wrap",marginBottom:10}}>
+<h3 class="m" style=${{fontSize:17,fontWeight:900,color:"#334155"}}>PER-PLAYER TOPIC BREAKDOWN</h3>
+<select value=${selPlayer} onChange=${e=>setSelPlayer(e.target.value)} class="inp" style=${{width:200,fontSize:16,padding:10}}>${players.map(p=>html`<option key=${p} value=${p}>${p}</option>`)}</select>
+</div>
+${(()=>{
+  const pe=hist.filter(h=>h.player===selPlayer&&(h.ts||0)>=cutoff);
+  if(!pe.length)return html`<p style=${{fontSize:16,color:"#64748b"}}>No practice data for ${selPlayer} in this window.</p>`;
+  const byCat=statRows(pe,evTopic).sort((a,b)=>b.t-a.t).slice(0,20);
+  const maxT=Math.max(...byCat.map(r=>r.t));
+  const total=pe.length,corr=pe.filter(h=>h.correct).length;
+  return html`<div>
+    <div style=${{fontSize:16,color:"#64748b",marginBottom:12}}>${selPlayer} has answered <b style=${{color:"#2563eb"}}>${total}</b> questions at <b style=${{color:"#10b981"}}>${pct(corr,total)}%</b> accuracy in this window.</div>
+    ${byCat.map(r=>html`<div style=${{marginBottom:12}}>
+      <div style=${{display:"flex",justifyContent:"space-between",fontSize:16,marginBottom:3}}><b style=${{color:CC[r.cat]||"#334155"}}>${r.label}</b><span style=${{color:"#64748b"}}>${r.cat?r.cat+" · ":""}${r.t} Qs · ${r.acc}% correct</span></div>
+      <div style=${{height:22,background:"#f1f5f9",borderRadius:5,position:"relative",overflow:"hidden"}}>
+        <div style=${{height:"100%",width:(r.t/maxT*100)+"%",background:CC[r.cat]||"#94a3b8",borderRadius:5,opacity:0.35}}/>
+        <div style=${{height:"100%",width:(r.t/maxT*100*r.acc/100)+"%",background:CC[r.cat]||"#2563eb",borderRadius:5,position:"absolute",top:0,left:0}}/>
+      </div>
+    </div>`)}
+    <p style=${{fontSize:14,color:"#94a3b8",marginTop:8}}>Grouped by topic (category shown beside each). Bar length = questions answered · solid fill = share correct.</p>
+  </div>`;
+})()}
 </section>
 
 <div style=${{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(300px,1fr))",gap:14}}>
