@@ -3673,6 +3673,7 @@ ${TOPIC_CATS.map(c=>{const n=c.only?allQs.filter(q=>(c.cat==="*"||q.cat===c.cat)
 function CoachDash({players,hist,trainQs,assessQs,named}){
 const[windowDays,setWindowDays]=useState(14);
 const[selPlayer,setSelPlayer]=useState(players[0]||"");
+const[covOpen,setCovOpen]=useState({});
 const cutoff=Date.now()-windowDays*864e5;
 const recent=hist.filter(h=>(h.ts||0)>=cutoff);
 const allQs=[...trainQs,...assessQs];
@@ -3752,19 +3753,55 @@ ${inactive.length>0&&html`<div style=${{marginTop:10,background:"#fef2f2",border
 ${(()=>{
   const pe=hist.filter(h=>h.player===selPlayer&&(h.ts||0)>=cutoff);
   if(!pe.length)return html`<p style=${{fontSize:16,color:"#64748b"}}>No practice data for ${selPlayer} in this window.</p>`;
+  const uniqB={};allQs.forEach(q=>{if(q&&q.id&&!uniqB[q.id])uniqB[q.id]=q});
+  const bankTot={};Object.values(uniqB).forEach(q=>{const k=getTopic(q)||q.cat||"Uncategorized";bankTot[k]=(bankTot[k]||0)+1});
+  const distinct={};pe.forEach(h=>{if(!h.qid||!uniqB[h.qid])return;const k=evTopic(h);(distinct[k]=distinct[k]||new Set()).add(h.qid)});
   const byCat=statRows(pe,evTopic).sort((a,b)=>b.t-a.t).slice(0,20);
   const maxT=Math.max(...byCat.map(r=>r.t));
   const total=pe.length,corr=pe.filter(h=>h.correct).length;
   return html`<div>
     <div style=${{fontSize:16,color:"#64748b",marginBottom:12}}>${selPlayer} has answered <b style=${{color:"#2563eb"}}>${total}</b> questions at <b style=${{color:"#10b981"}}>${pct(corr,total)}%</b> accuracy in this window.</div>
     ${byCat.map(r=>html`<div style=${{marginBottom:12}}>
-      <div style=${{display:"flex",justifyContent:"space-between",fontSize:16,marginBottom:3}}><b style=${{color:CC[r.cat]||"#334155"}}>${r.label}</b><span style=${{color:"#64748b"}}>${r.cat?r.cat+" · ":""}${r.t} Qs · ${r.acc}% correct</span></div>
+      <div style=${{display:"flex",justifyContent:"space-between",fontSize:16,marginBottom:3}}><b style=${{color:CC[r.cat]||"#334155"}}>${r.label}</b><span style=${{color:"#64748b"}}>${r.t} Qs · ${r.acc}% · ${(distinct[r.label]||new Set()).size} of ${bankTot[r.label]||"?"} in bank</span></div>
       <div style=${{height:22,background:"#f1f5f9",borderRadius:5,position:"relative",overflow:"hidden"}}>
-        <div style=${{height:"100%",width:(r.t/maxT*100)+"%",background:CC[r.cat]||"#94a3b8",borderRadius:5,opacity:0.35}}/>
-        <div style=${{height:"100%",width:(r.t/maxT*100*r.acc/100)+"%",background:CC[r.cat]||"#2563eb",borderRadius:5,position:"absolute",top:0,left:0}}/>
+        <div style=${{height:"100%",width:pct((distinct[r.label]||new Set()).size,bankTot[r.label]||0)+"%",background:CC[r.cat]||"#94a3b8",borderRadius:5,opacity:0.35}}/>
+        <div style=${{height:"100%",width:(pct((distinct[r.label]||new Set()).size,bankTot[r.label]||0)*r.acc/100)+"%",background:CC[r.cat]||"#2563eb",borderRadius:5,position:"absolute",top:0,left:0}}/>
       </div>
     </div>`)}
-    <p style=${{fontSize:14,color:"#94a3b8",marginTop:8}}>Grouped by topic (category shown beside each). Bar length = questions answered · solid fill = share correct.</p>
+    <p style=${{fontSize:14,color:"#94a3b8",marginTop:8}}>Bar length = share of the bank they have seen (full bar = seen every question) · solid fill = accuracy. A full but pale bar means they have seen it all and still miss questions: time to teach, not re-drill.</p>
+  </div>`;
+})()}
+</section>
+
+<section style=${{background:"#ffffff",border:"1px solid #cbd5e1",borderRadius:12,padding:14,marginBottom:18}}>
+<h3 className="m" style=${{fontSize:17,fontWeight:900,color:"#334155",marginBottom:4}}>BANK COVERAGE — ${selPlayer}</h3>
+<p style=${{fontSize:14,color:"#94a3b8",marginBottom:12}}>Distinct questions attempted out of the full bank, all time (not limited by the window above). Repeats count once.</p>
+${(()=>{
+  const uniq={};allQs.forEach(q=>{if(q&&q.id&&!uniq[q.id])uniq[q.id]=q});
+  const totals={},topTotals={};
+  Object.values(uniq).forEach(q=>{const c=q.cat||"Uncategorized",t=getTopic(q)||"Other";
+    totals[c]=(totals[c]||0)+1;(topTotals[c]=topTotals[c]||{})[t]=(topTotals[c][t]||0)+1});
+  const seen={},topSeen={};
+  hist.forEach(h=>{if(h.player!==selPlayer||!h.qid)return;const q=uniq[h.qid];if(!q)return;
+    const c=q.cat||"Uncategorized",t=getTopic(q)||"Other";
+    (seen[c]=seen[c]||new Set()).add(h.qid);
+    ((topSeen[c]=topSeen[c]||{})[t]=topSeen[c][t]||new Set()).add(h.qid)});
+  const rows=Object.keys(totals).sort((a,b)=>totals[b]-totals[a]).map(c=>({cat:c,n:(seen[c]||new Set()).size,tot:totals[c]}));
+  const totSeen=rows.reduce((s,r)=>s+r.n,0),totAll=rows.reduce((s,r)=>s+r.tot,0);
+  return html`<div>
+  <div style=${{fontSize:16,color:"#64748b",marginBottom:12}}>Overall: <b style=${{color:"#2563eb"}}>${totSeen}</b> of <b>${totAll}</b> questions attempted (${pct(totSeen,totAll)}%). Tap a category for its topics.</div>
+  ${rows.map(r=>{
+    const open=!!covOpen[r.cat];
+    const subs=open?Object.keys(topTotals[r.cat]||{}).sort((a,b)=>topTotals[r.cat][b]-topTotals[r.cat][a]).map(t=>({t,n:((topSeen[r.cat]||{})[t]||new Set()).size,tot:topTotals[r.cat][t]})):[];
+    return html`<div key=${r.cat} style=${{marginBottom:10}}>
+    <div onClick=${()=>setCovOpen(o=>({...o,[r.cat]:!o[r.cat]}))} style=${{cursor:"pointer"}}>
+      <div style=${{display:"flex",justifyContent:"space-between",fontSize:16}}><b style=${{color:CC[r.cat]||"#334155"}}>${open?"▾ ":"▸ "}${r.cat}</b><span style=${{color:"#64748b"}}>${r.n} of ${r.tot} · ${pct(r.n,r.tot)}%</span></div>
+      <div style=${{height:8,background:"#e2e8f0",borderRadius:4,marginTop:4}}><div style=${{height:"100%",width:pct(r.n,r.tot)+"%",background:CC[r.cat]||"#2563eb",borderRadius:4}}/></div>
+    </div>
+    ${open&&html`<div style=${{margin:"8px 0 4px 16px",borderLeft:"2px solid #e2e8f0",paddingLeft:12}}>
+      ${subs.map(s=>html`<div key=${s.t} style=${{display:"flex",justifyContent:"space-between",fontSize:15,padding:"4px 0"}}><span style=${{color:s.n?"#334155":"#94a3b8"}}>${s.t}</span><span style=${{color:s.n===0?"#dc2626":s.n===s.tot?"#059669":"#64748b",fontWeight:s.n===0||s.n===s.tot?700:500}}>${s.n} of ${s.tot}</span></div>`)}
+    </div>`}
+    </div>`})}
   </div>`;
 })()}
 </section>
