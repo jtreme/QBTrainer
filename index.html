@@ -3100,10 +3100,11 @@ const[assessQs,setAssessQs]=useState([...ASSESS]);
 const[namedRaw,setNamedRaw]=useState([]);
 const[hist,setHist]=useState([]);
 const[flash,setFlash]=useState(()=>ld("flash",{}));
+const[bugReports,setBugReports]=useState([]);
 const[ready,setReady]=useState(false);
 
 useEffect(()=>{
-const r={players:db.ref("players"),training:db.ref("training"),assess:db.ref("assess"),named:db.ref("named"),hist:db.ref("hist")};
+const r={players:db.ref("players"),training:db.ref("training"),assess:db.ref("assess"),named:db.ref("named"),hist:db.ref("hist"),bugReports:db.ref("bugReports")};
 
 // Migration: check localStorage for existing data and push to Firebase if Firebase is empty
 const localPlayers=ld("players",null);
@@ -3126,6 +3127,7 @@ r.named.on("value",s=>{const v=s.val();if(v){const a=Array.isArray(v)?v:Object.v
   });
   setNamedRaw(normalized);}});
 r.hist.on("value",s=>{const v=s.val();if(v){const a=Array.isArray(v)?v:Object.values(v);setHist(a);}});
+r.bugReports.on("value",s=>{const out=[];s.forEach(ch=>{out.push({_key:ch.key,...ch.val()})});setBugReports(out);});
 
 // Seed Firebase: prefer localStorage data over defaults
 db.ref("players").once("value",s=>{
@@ -3200,6 +3202,18 @@ const sP=sync("players",setPlayers);
 const sT=sync("training",setTrainQs);
 const sA=sync("assess",setAssessQs);
 const addH=(ev)=>{const entry={...ev,topic:ev.topic||getTopic(ev),ts:Date.now()};setHist(p=>[...p,entry]);db.ref("hist").push(entry).catch(e=>console.error(e));};
+// Student-submitted problem reports. Pushed to Firebase under bugReports so the
+// coach sees them live in the Reports tab. Falls back to localStorage only if
+// the network write fails, so a report is never silently lost.
+const addBug=(b)=>{const entry={...b,ts:Date.now(),done:false};db.ref("bugReports").push(entry).catch(e=>{console.error(e);try{const k="qbt_bugreports_local";const cur=JSON.parse(localStorage.getItem(k)||"[]");cur.push(entry);localStorage.setItem(k,JSON.stringify(cur));}catch{}});};
+// Edit a live question in place, matched by id. Writes ONLY to the training or
+// assess node (via the same sT/sA writers the Builder uses). The id is never
+// changed, and hist/players are never read or written here — so every recorded
+// score, attempt, and leaderboard standing is left exactly as-is. Changing a
+// correct answer only affects future grading; past attempts stay as recorded.
+const editQ=(qid,patch)=>{if(!qid||!patch)return;const p={...patch};delete p.id;
+if(trainQs.some(q=>q.id===qid)){sT(prev=>prev.map(q=>q.id===qid?{...q,...p}:q));}
+else if(assessQs.some(q=>q.id===qid)){sA(prev=>prev.map(q=>q.id===qid?{...q,...p}:q));}};
 // Feed Check-In / Topic Drill results into the flashcard review pile: a miss
 // bumps that question's "wrong" count so it resurfaces more often in Flashcards;
 // a correct answer bumps "right" so it fades. Same {r,w} shape the Flash drill
@@ -3214,7 +3228,7 @@ const tabs=[
 {id:"practice",l:"Practice",i:"🎯"},
 {id:"facts",l:"Fact Cards",i:"📖"},
 {id:"team",l:"Team",i:"👥"},
-...(coach?[{id:"build",l:"Build",i:"✏️"},{id:"browse",l:"Browse",i:"📚"}]:[]),
+...(coach?[{id:"build",l:"Build",i:"✏️"},{id:"browse",l:"Browse",i:"📚"},{id:"reports",l:(bugReports.filter(b=>!b.done).length?"Reports ("+bugReports.filter(b=>!b.done).length+")":"Reports"),i:"⚑"}]:[]),
 ...(!coach?[{id:"coach",l:"Coach",i:"🔒"}]:[{id:"coach",l:"Out",i:"🔓"}])
 ];
 
@@ -3241,14 +3255,15 @@ ${tabs.map(t=>{const active=tab===t.id||(["train","flash","assess","topics"].inc
 ${tab==="today"&&html`<${Today} players=${players} hist=${hist} flash=${flash} setTab=${setTab} named=${named} allQs=${[...trainQs,...assessQs]}/>`}
 ${tab==="practice"&&html`<${PracticeHome} trainQs=${trainQs} assessQs=${assessQs} named=${named} flash=${flash} setTab=${setTab}/>`}
 ${["train","flash","assess","topics"].includes(tab)&&html`<button onClick=${()=>setTab("practice")} className="secondary-btn" style=${{marginBottom:12}}>← Practice menu</button>`}
-${tab==="train"&&html`<${Train} qs=${trainQs} players=${players} addH=${addH}/>`}
-${tab==="flash"&&html`<${Flash} qs=${[...trainQs,...assessQs]} prog=${flash} setProg=${setFlash}/>`}
-${tab==="assess"&&html`<${Assess} qs=${assessQs} players=${players} addH=${addH} named=${named} addFlash=${addFlash}/>`}
-${tab==="topics"&&html`<${TopicDrill} trainQs=${trainQs} assessQs=${assessQs} players=${players} addH=${addH} addFlash=${addFlash}/>`}
+${tab==="train"&&html`<${Train} qs=${trainQs} players=${players} addH=${addH} addBug=${addBug}/>`}
+${tab==="flash"&&html`<${Flash} qs=${[...trainQs,...assessQs]} prog=${flash} setProg=${setFlash} addBug=${addBug}/>`}
+${tab==="assess"&&html`<${Assess} qs=${assessQs} players=${players} addH=${addH} named=${named} addFlash=${addFlash} addBug=${addBug}/>`}
+${tab==="topics"&&html`<${TopicDrill} trainQs=${trainQs} assessQs=${assessQs} players=${players} addH=${addH} addFlash=${addFlash} addBug=${addBug}/>`}
 ${tab==="facts"&&html`<${FactCards}/>`}
 ${tab==="dash"&&coach&&html`<${CoachDash} players=${players} hist=${hist} trainQs=${trainQs} assessQs=${assessQs} named=${named}/>`}
 ${tab==="build"&&coach&&html`<${Build} addT=${addT} tQs=${trainQs} setT=${sT} aQs=${assessQs} setA=${sA} addAQ=${addAQ}/>`}
 ${tab==="browse"&&coach&&html`<${BrowseBank} trainQs=${trainQs} assessQs=${assessQs}/>`}
+${tab==="reports"&&coach&&html`<${BugReports} reports=${bugReports} allQs=${[...trainQs,...assessQs]} editQ=${editQ}/>`}
 ${tab==="team"&&html`<${Team} players=${players} setPlayers=${sP} hist=${hist} allQs=${[...trainQs,...assessQs]}/>`}
 ${tab==="coach"&&!coach&&html`<div className="fu section-card" style=${{maxWidth:390,margin:"18px auto",textAlign:"center"}}>
 <div style=${{fontSize:44,marginBottom:8}}>🔒</div>
@@ -3373,7 +3388,96 @@ return html`<div className="fu">
 }
 
 // ═══ TRAINING ═══
-function Train({qs,players,addH}){
+// ═══ BUG REPORTS ═══
+// Student-facing flag on any question, plus the coach's review list. Reports go
+// to Firebase (bugReports node) via addBug, threaded down from App.
+function ReportBug({q,addBug,who}){
+const[open,setOpen]=useState(false);
+const[kind,setKind]=useState("");
+const[note,setNote]=useState("");
+const[sent,setSent]=useState(false);
+if(!q||!q.id||!addBug)return null;
+const KINDS=["Wrong answer","Typo / wording","Image won't load","Confusing question","Other"];
+const send=()=>{if(!kind)return;addBug({qid:q.id,qtext:q.q||"",cat:q.cat||"",kind,note:note.trim(),who:who||""});setSent(true);setTimeout(()=>{setOpen(false);setSent(false);setKind("");setNote("");},1600);};
+if(sent)return html`<div style=${{marginTop:10,textAlign:"center",fontSize:14,fontWeight:700,color:"#10b981"}}>✓ Thanks — sent to the coach</div>`;
+if(!open)return html`<div style=${{marginTop:10,textAlign:"center"}}><button onClick=${()=>setOpen(true)} style=${{background:"none",border:"none",color:"#94a3b8",fontSize:13,fontWeight:600,textDecoration:"underline",cursor:"pointer"}}>⚑ Report a problem with this question</button></div>`;
+return html`<div style=${{marginTop:10,background:"#fff7ed",border:"1px solid #fed7aa",borderRadius:10,padding:12,textAlign:"left"}}>
+<div style=${{fontSize:13,fontWeight:800,color:"#9a3412",marginBottom:8}}>Report a problem <span style=${{fontWeight:500,color:"#c2704a"}}>· ${q.id}</span></div>
+<div style=${{display:"flex",flexWrap:"wrap",gap:5,marginBottom:8}}>
+${KINDS.map(k=>html`<button key=${k} onClick=${()=>setKind(k)} style=${{padding:"5px 10px",borderRadius:14,fontSize:13,fontWeight:700,cursor:"pointer",background:kind===k?"#ea580c":"#ffffff",color:kind===k?"#ffffff":"#9a3412",border:"1px solid "+(kind===k?"#ea580c":"#fed7aa")}}>${k}</button>`)}</div>
+<textarea value=${note} onInput=${e=>setNote(e.target.value)} placeholder="Optional: what's wrong? (e.g. the answer should be B)" rows=${2} class="inp" style=${{fontSize:14,width:"100%",resize:"vertical",marginBottom:8}}/>
+<div style=${{display:"flex",gap:8}}>
+<button onClick=${()=>{setOpen(false);setKind("");setNote("");}} style=${{padding:"8px 14px",borderRadius:8,fontSize:14,fontWeight:700,background:"#ffffff",color:"#9a3412",border:"1px solid #fed7aa",cursor:"pointer"}}>Cancel</button>
+<button onClick=${send} disabled=${!kind} style=${{flex:1,padding:"8px 14px",borderRadius:8,fontSize:14,fontWeight:800,background:kind?"#ea580c":"#f1e2d5",color:kind?"#ffffff":"#c2a58f",border:"none",cursor:kind?"pointer":"default"}}>Send report</button>
+</div></div>`;
+}
+
+// Inline question editor. Emits a patch of only the changed fields; the parent's
+// editQ writes it to the question bank without ever touching scores.
+function QEditor({q,onSave,onCancel}){
+const isMc=q.type==="mc"&&Array.isArray(q.options);
+const[qt,setQt]=useState(q.q||"");
+const[opts,setOpts]=useState(isMc?[...q.options]:[]);
+const[ans,setAns]=useState(q.a||"");
+const L=["A","B","C","D","E"];
+const setOpt=(i,v)=>setOpts(p=>p.map((o,j)=>j===i?v:o));
+const save=()=>{const patch=isMc?{q:qt.trim(),options:opts.map(o=>o.trim()),a:ans}:{q:qt.trim(),a:ans.trim()};onSave(patch);};
+const ok=qt.trim()&&(isMc?!!ans:ans.trim());
+return html`<div style=${{marginTop:8,background:"#ffffff",border:"1px solid #cbd5e1",borderRadius:10,padding:12}}>
+<div style=${{fontSize:13,fontWeight:800,color:"#334155",marginBottom:8}}>Edit question <span style=${{fontWeight:600,color:"#94a3b8"}}>· ${q.id} · scores stay untouched</span></div>
+<label style=${{fontSize:12,fontWeight:700,color:"#64748b",display:"block",marginBottom:4}}>Question</label>
+<textarea value=${qt} onInput=${e=>setQt(e.target.value)} rows=${2} class="inp" style=${{fontSize:14,width:"100%",resize:"vertical",marginBottom:10}}/>
+${isMc?html`<label style=${{fontSize:12,fontWeight:700,color:"#64748b",display:"block",marginBottom:4}}>Options · tap a letter to set the correct answer</label>
+${opts.map((o,i)=>html`<div key=${i} style=${{display:"flex",gap:6,alignItems:"center",marginBottom:6}}>
+<button onClick=${()=>setAns(L[i])} style=${{width:32,height:32,borderRadius:8,fontSize:14,fontWeight:800,flexShrink:0,cursor:"pointer",background:ans===L[i]?"#10b981":"#f1f5f9",color:ans===L[i]?"#ffffff":"#64748b",border:"1px solid "+(ans===L[i]?"#10b981":"#cbd5e1")}}>${L[i]}</button>
+<input value=${o} onInput=${e=>setOpt(i,e.target.value)} class="inp" style=${{fontSize:14,flex:1}}/></div>`)}`
+:html`<label style=${{fontSize:12,fontWeight:700,color:"#64748b",display:"block",marginBottom:4}}>Correct answer</label>
+<input value=${ans} onInput=${e=>setAns(e.target.value)} class="inp" style=${{fontSize:14,width:"100%"}}/>`}
+<div style=${{display:"flex",gap:8,marginTop:10}}>
+<button onClick=${onCancel} style=${{padding:"8px 14px",borderRadius:8,fontSize:14,fontWeight:700,cursor:"pointer",background:"#ffffff",color:"#475569",border:"1px solid #cbd5e1"}}>Cancel</button>
+<button onClick=${save} disabled=${!ok} style=${{flex:1,padding:"8px 14px",borderRadius:8,fontSize:14,fontWeight:800,cursor:ok?"pointer":"default",background:ok?"#2563eb":"#e2e8f0",color:ok?"#ffffff":"#94a3b8",border:"none"}}>Save to question bank</button>
+</div></div>`;
+}
+
+function ReportCard({r,live,editQ}){
+const[editing,setEditing]=useState(false);
+const[saved,setSaved]=useState(false);
+const resolve=(v)=>db.ref("bugReports/"+r._key+"/done").set(v).catch(e=>console.error(e));
+const del=()=>{if(confirm("Delete this report permanently?"))db.ref("bugReports/"+r._key).remove().catch(e=>console.error(e));};
+const onSave=(patch)=>{editQ(r.qid,patch);setEditing(false);setSaved(true);setTimeout(()=>setSaved(false),3000);};
+return html`<div style=${{background:r.done?"#f8fafc":"#fff7ed",border:"1px solid "+(r.done?"#e2e8f0":"#fed7aa"),borderRadius:10,padding:12,marginBottom:8,opacity:r.done?.65:1}}>
+<div style=${{display:"flex",justifyContent:"space-between",alignItems:"baseline",gap:8,flexWrap:"wrap",marginBottom:4}}>
+<span style=${{fontSize:14,fontWeight:800,color:"#9a3412"}}>${r.kind||"Problem"} <span style=${{fontWeight:600,color:"#64748b"}}>· ${r.qid||"?"}</span></span>
+<span style=${{fontSize:13,color:"#94a3b8"}}>${r.who?r.who+" · ":""}${r.ts?new Date(r.ts).toLocaleString():""}</span></div>
+${live?html`<p style=${{fontSize:14,color:"#475569",margin:"2px 0"}}>${live.q}</p>
+<p style=${{fontSize:13,color:"#10b981",fontWeight:600,margin:"2px 0"}}>Current answer: ${live.type==="mc"&&live.options?live.a+". "+(live.options[["A","B","C","D","E"].indexOf(live.a)]||""):live.a}</p>`
+:html`<p style=${{fontSize:14,color:"#475569",margin:"2px 0"}}>${r.qtext||""}</p><p style=${{fontSize:13,color:"#ef4444",margin:"2px 0"}}>This question is no longer in the bank.</p>`}
+${r.note&&html`<p style=${{fontSize:14,color:"#1e293b",background:"#ffffff",border:"1px solid #e2e8f0",borderRadius:8,padding:"6px 8px",margin:"6px 0"}}><b style=${{color:"#9a3412"}}>Student: </b>${r.note}</p>`}
+${saved&&html`<p style=${{fontSize:13,fontWeight:700,color:"#10b981",margin:"6px 0"}}>✓ Saved to the bank — every score and leaderboard left untouched</p>`}
+${editing&&live&&html`<${QEditor} q=${live} onSave=${onSave} onCancel=${()=>setEditing(false)}/>`}
+${!editing&&html`<div style=${{display:"flex",gap:8,marginTop:8,flexWrap:"wrap"}}>
+${live&&html`<button onClick=${()=>setEditing(true)} style=${{padding:"6px 12px",borderRadius:8,fontSize:13,fontWeight:700,cursor:"pointer",background:"#2563eb",color:"#ffffff",border:"none"}}>✏️ Edit question</button>`}
+<button onClick=${()=>resolve(!r.done)} style=${{padding:"6px 12px",borderRadius:8,fontSize:13,fontWeight:700,cursor:"pointer",background:r.done?"#ffffff":"#10b981",color:r.done?"#64748b":"#ffffff",border:"1px solid "+(r.done?"#cbd5e1":"#10b981")}}>${r.done?"Reopen":"✓ Mark resolved"}</button>
+<button onClick=${del} style=${{padding:"6px 12px",borderRadius:8,fontSize:13,fontWeight:700,cursor:"pointer",background:"#ffffff",color:"#ef4444",border:"1px solid #ef444433"}}>Delete</button>
+</div>`}
+</div>`;
+}
+
+function BugReports({reports,allQs,editQ}){
+const[showDone,setShowDone]=useState(false);
+const all=reports||[];
+const pool=allQs||[];
+const list=[...all].sort((a,b)=>(b.ts||0)-(a.ts||0)).filter(r=>showDone||!r.done);
+const openN=all.filter(r=>!r.done).length;
+return html`<div class="fu">
+<h2 class="m" style=${{fontSize:18,fontWeight:800,marginBottom:4}}>⚑ Student Bug Reports</h2>
+<p style=${{fontSize:15,color:"#64748b",marginBottom:12}}>${openN} open · ${all.length} total. Editing a question here writes only to the question bank — student scores and leaderboards are never affected.</p>
+<label style=${{fontSize:14,color:"#64748b",display:"flex",alignItems:"center",gap:6,marginBottom:14,cursor:"pointer"}}><input type="checkbox" checked=${showDone} onChange=${e=>setShowDone(e.target.checked)}/> Show resolved</label>
+${list.length===0?html`<p style=${{fontSize:15,color:"#94a3b8"}}>No ${showDone?"":"open "}reports right now.</p>`:list.map(r=>html`<${ReportCard} key=${r._key} r=${r} live=${pool.find(q=>q.id===r.qid)} editQ=${editQ}/>`)}
+</div>`;
+}
+
+function Train({qs,players,addH,addBug}){
 const[ph,setPh]=useState("setup");
 const[pl,setPl]=useState("");
 const[cats,setCats]=useState([...CATS]);
@@ -3449,11 +3553,12 @@ ${sa&&!ans&&html`<div class="fu" style=${{marginBottom:14}}>
 </div></div>`}
 ${ans&&html`<button onClick=${nx} style=${{width:"100%",background:"#2563eb",color:"#ffffff",padding:12,borderRadius:8,fontWeight:700}}>${ix+1>=dk.length?"Results":"Next →"}</button>`}
 ${sa&&!ans&&html`<button onClick=${nx} style=${{width:"100%",marginTop:8,background:"#bfdbfe",color:"#64748b",padding:13,borderRadius:8,fontSize:18,border:"1px solid #cbd5e1"}}>Skip</button>`}
+<${ReportBug} q=${cur} addBug=${addBug} who=${pl}/>
 </div>`;
 }
 
 // ═══ FLASHCARDS ═══
-function Flash({qs,prog,setProg}){
+function Flash({qs,prog,setProg,addBug}){
 const[cat,setCat]=useState("All");
 const[dk,setDk]=useState([]);const[ix,setIx]=useState(0);
 const[flip,setFlip]=useState(false);const[on,setOn]=useState(false);
@@ -3497,11 +3602,12 @@ ${flip&&html`<div class="fu" style=${{display:"flex",gap:10,marginTop:16}}>
 <button onClick=${()=>mark(false)} style=${{flex:1,padding:12,borderRadius:10,fontSize:18,fontWeight:700,background:"#ef444418",color:"#ef4444",border:"1px solid #ef444433"}}>✗ Missed</button>
 <button onClick=${()=>mark(true)} style=${{flex:1,padding:12,borderRadius:10,fontSize:18,fontWeight:700,background:"#10b98118",color:"#10b981",border:"1px solid #10b98133"}}>✓ Got It</button>
 </div>`}
+<${ReportBug} q=${cur} addBug=${addBug}/>
 </div>`;
 }
 
 // ═══ ASSESSMENT ═══
-function Assess({qs,players,addH,named,title,subtitle,startLabel,onBack,addFlash}){
+function Assess({qs,players,addH,named,title,subtitle,startLabel,onBack,addFlash,addBug}){
 title=title||"📝 Check-In";subtitle=subtitle||"15 seconds per question!";startLabel=startLabel||"Random Practice";
 const[ph,setPh]=useState("sel");
 const[pl,setPl]=useState("");
@@ -3619,6 +3725,7 @@ ${fb?html`<button onClick=${next} style=${{width:"100%",padding:16,borderRadius:
 <button onClick=${pass} style=${{padding:14,borderRadius:10,fontSize:16,fontWeight:700,background:"#ffffff",color:"#64748b",border:"1px solid #cbd5e1",whiteSpace:"nowrap"}}>I don't know</button>
 <button onClick=${submit} disabled=${cur.type==="mc"?!mc:!typed.trim()} style=${{flex:1,padding:14,borderRadius:10,fontSize:18,fontWeight:800,background:(cur.type==="mc"?mc:typed.trim())?"#2563eb":"#e2e8f0",color:(cur.type==="mc"?mc:typed.trim())?"#060a12":"#64748b"}}>SUBMIT →</button></div>`}
 <button onClick=${finishNow} style=${{marginTop:12,width:"100%",padding:12,borderRadius:10,fontSize:15,fontWeight:700,background:"#f8fafc",color:"#475569",border:"1px solid #cbd5e1"}}>⏸ Finish for now & see summary</button>
+<${ReportBug} q=${cur} addBug=${addBug} who=${pl}/>
 </div>`;
 }
 
@@ -3637,7 +3744,7 @@ const TOPIC_CATS=[
   {cat:"Potpourri",emoji:"🏙️",color:"#f97316",label:"Kansas City",only:"Kansas City"},
   {cat:"*",emoji:"🎥",color:"#8f1a1a",label:"Zoom July 19",only:"ZoomJuly19",sub:"July 19 Zoom Jeopardy rounds · instant feedback with explanations"},
 ];
-function TopicDrill({trainQs,assessQs,players,addH,addFlash}){
+function TopicDrill({trainQs,assessQs,players,addH,addFlash,addBug}){
 const[cat,setCat]=useState(null);
 const[topic,setTopic]=useState(null);
 const allQs=useMemo(()=>[...trainQs,...assessQs],[trainQs,assessQs]);
@@ -3647,7 +3754,7 @@ if(topic){
   const dm=TOPIC_CATS.find(c=>c.cat===cat);
   const back=dm&&dm.only?()=>{setTopic(null);setCat(null);}:()=>setTopic(null);
   const sub=dm&&dm.only?(dm.sub||"Kansas City competition prep · instant feedback with explanations"):"Part of "+cat+" · instant feedback with explanations";
-  return html`<${Assess} qs=${filtered} players=${players} addH=${addH} named=${[]} addFlash=${addFlash}
+  return html`<${Assess} qs=${filtered} players=${players} addH=${addH} named=${[]} addFlash=${addFlash} addBug=${addBug}
     title=${"🎯 "+topic} subtitle=${sub}
     startLabel=${"Start "+topic+" Drill"} onBack=${back}/>`;
 }
