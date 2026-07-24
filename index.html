@@ -3339,6 +3339,7 @@ ${tab==="train"&&html`<${Train} qs=${trainQs} players=${players} addH=${addH} ad
 ${tab==="flash"&&html`<${Flash} qs=${[...trainQs,...assessQs]} prog=${flash} setProg=${setFlash} addBug=${addBug}/>`}
 ${tab==="assess"&&html`<${Assess} qs=${assessQs} players=${players} addH=${addH} named=${named} addFlash=${addFlash} addBug=${addBug}/>`}
 ${tab==="topics"&&html`<${TopicDrill} trainQs=${trainQs} assessQs=${assessQs} players=${players} addH=${addH} addFlash=${addFlash} addBug=${addBug}/>`}
+${tab==="missed"&&html`<${MissedDrill} trainQs=${trainQs} assessQs=${assessQs} players=${players} hist=${hist} addH=${addH} addFlash=${addFlash} addBug=${addBug} onBack=${()=>setTab("practice")}/>`}
 ${tab==="facts"&&html`<${FactCards}/>`}
 ${tab==="dash"&&coach&&html`<${CoachDash} players=${players} hist=${hist} trainQs=${trainQs} assessQs=${assessQs} named=${named}/>`}
 ${tab==="build"&&coach&&html`<${Build} addT=${addT} tQs=${trainQs} setT=${sT} aQs=${assessQs} setA=${sA} addAQ=${addAQ}/>`}
@@ -3459,6 +3460,7 @@ return html`<div className="fu">
     <div className="practice-grid">
       ${tile("⚡","Training Quiz","Timed buzzer-style questions. Best default for daily reps.",trainQs.length+" questions",()=>setTab("train"),"#2563eb")}
       ${tile("🃏","Flashcards","Review missed questions. Weak cards come back more often.",flashMissed+" weak cards",()=>setTab("flash"),"#7c3aed")}
+      ${tile("🎯","Missed Questions","One place for every question you've gotten wrong, across all modes. Drill them until they clear.","Your personal review pile",()=>setTab("missed"),"#dc2626")}
       ${tile("📝","Check-In","A short assessment that creates coaching data by category and topic.",assessQs.length+" questions",()=>setTab("assess"),"#059669")}
       ${tile("📌","Assigned Sets",named.length?"Start a coach-built set from the Check-In screen.":"Coach-created sets will show here once added.",named.length+" sets",()=>setTab("assess"),"#ea580c")}
       ${tile("🧭","Topic Drill","Pick a subject, then drill one weak subtopic at a time (Elasticity, Externalities, GDP, and more).","Micro · Macro · Policy · Quant",()=>setTab("topics"),"#0891b2")}
@@ -3687,10 +3689,40 @@ ${flip&&html`<div class="fu" style=${{display:"flex",gap:10,marginTop:16}}>
 }
 
 // ═══ ASSESSMENT ═══
-function Assess({qs,players,addH,named,title,subtitle,startLabel,onBack,addFlash,addBug}){
+// ═══ MISSED QUESTIONS ═══
+// One place, per student, for every question they've gotten wrong across ALL
+// modes. Source of truth is the Firebase attempt history (not the per-device
+// flash pile), so it follows the student and spans Training/Check-In/Topic Drill.
+// A question clears once their correct count catches up to their wrong count.
+function MissedDrill({trainQs,assessQs,players,hist,addH,addFlash,addBug,onBack}){
+const[who,setWho]=useState(null);
+const allQs=useMemo(()=>{const u={};[...trainQs,...assessQs].forEach(q=>{if(q&&q.id&&!u[q.id])u[q.id]=q});return Object.values(u)},[trainQs,assessQs]);
+const missedFor=(name)=>{const st={};hist.forEach(h=>{if(h.player!==name||!h.qid)return;const s=st[h.qid]||(st[h.qid]={c:0,w:0});if(h.correct)s.c++;else s.w++});const ids=new Set(Object.keys(st).filter(id=>(st[id].w||0)>(st[id].c||0)));return allQs.filter(q=>ids.has(q.id))};
+if(!who){
+  return html`<div class="fu">
+  ${onBack&&html`<button onClick=${onBack} class="secondary-btn" style=${{marginBottom:12}}>← Practice</button>`}
+  <h2 class="m" style=${{fontSize:20,fontWeight:800,marginBottom:6}}>🎯 Missed Questions</h2>
+  <p style=${{fontSize:16,color:"#64748b",marginBottom:16}}>Every question you've missed — from Training, Check-In, and Topic Drill — in one place. Get one right and it drops off your list.</p>
+  <label class="m" style=${{fontSize:18,fontWeight:700,color:"#2563eb",display:"block",marginBottom:8}}>WHO ARE YOU?</label>
+  <div style=${{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(140px,1fr))",gap:6}}>
+  ${players.map(p=>{const n=missedFor(p).length;return html`<button key=${p} onClick=${()=>setWho(p)} style=${{padding:"12px 14px",borderRadius:8,fontSize:16,fontWeight:700,background:"#ffffff",border:"2px solid #e2e8f0",color:"#1a202c",textAlign:"left",cursor:"pointer"}}>${p}<div style=${{fontSize:13,fontWeight:700,color:n?"#dc2626":"#10b981",marginTop:2}}>${n} to review</div></button>`})}</div>
+  </div>`;
+}
+const missed=missedFor(who);
+if(!missed.length)return html`<div class="fu">
+  <button onClick=${()=>setWho(null)} class="secondary-btn" style=${{marginBottom:12}}>← Back</button>
+  <div style=${{textAlign:"center",padding:"44px 16px"}}><div style=${{fontSize:44,marginBottom:8}}>🎉</div>
+  <h2 class="m" style=${{fontSize:20,fontWeight:800,marginBottom:6}}>Nothing to review</h2>
+  <p style=${{fontSize:16,color:"#64748b"}}>${who} has no outstanding missed questions. Anything missed in Training, Check-In, or Topic Drill will collect here.</p></div></div>`;
+return html`<${Assess} qs=${missed} players=${[who]} initialPlayer=${who} named=${[]} addH=${addH} addFlash=${addFlash} addBug=${addBug}
+  title=${"🎯 "+who+" · Missed Questions"} subtitle=${missed.length+" to review · get one right to clear it"}
+  startLabel="Start Review" onBack=${()=>setWho(null)}/>`;
+}
+
+function Assess({qs,players,addH,named,title,subtitle,startLabel,onBack,addFlash,addBug,initialPlayer}){
 title=title||"📝 Check-In";subtitle=subtitle||"15 seconds per question!";startLabel=startLabel||"Random Practice";
 const[ph,setPh]=useState("sel");
-const[pl,setPl]=useState("");
+const[pl,setPl]=useState(initialPlayer||"");
 const[dk,setDk]=useState([]);const[ix,setIx]=useState(0);
 const[answers,setAnswers]=useState([]);
 const[typed,setTyped]=useState("");const[mc,setMc]=useState(null);
@@ -3726,9 +3758,9 @@ if(ph==="sel")return html`<div class="fu">
 ${onBack&&html`<button onClick=${onBack} class="secondary-btn" style=${{marginBottom:12}}>← Back</button>`}
 <h2 class="m" style=${{fontSize:18,fontWeight:800,marginBottom:6}}>${title}</h2>
 <p style=${{fontSize:16,color:"#64748b",marginBottom:16}}>${subtitle}</p>
-<label class="m" style=${{fontSize:18,fontWeight:700,color:"#2563eb",display:"block",marginBottom:6}}>WHO ARE YOU?</label>
+${!initialPlayer&&html`<label class="m" style=${{fontSize:18,fontWeight:700,color:"#2563eb",display:"block",marginBottom:6}}>WHO ARE YOU?</label>
 <div style=${{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(130px,1fr))",gap:6,marginBottom:20}}>
-${players.map(p=>html`<button onClick=${()=>setPl(p)} style=${{padding:13,borderRadius:8,fontSize:16,fontWeight:pl===p?700:500,background:pl===p?"#2563eb":"#ffffff",border:"2px solid "+(pl===p?"#2563eb":"#e2e8f0"),color:pl===p?"#ffffff":"#1a202c"}}>${p}</button>`)}</div>
+${players.map(p=>html`<button onClick=${()=>setPl(p)} style=${{padding:13,borderRadius:8,fontSize:16,fontWeight:pl===p?700:500,background:pl===p?"#2563eb":"#ffffff",border:"2px solid "+(pl===p?"#2563eb":"#e2e8f0"),color:pl===p?"#ffffff":"#1a202c"}}>${p}</button>`)}</div>`}
 ${named.length>0&&html`<div style=${{marginBottom:20}}>
 <label class="m" style=${{fontSize:18,fontWeight:700,color:"#ef4444",display:"block",marginBottom:8}}>ASSIGNED</label>
 ${named.map((a,i)=>{const nNew=(a.questions||[]).filter(q=>isNewQ(q.id)).length;return html`<button key=${i} onClick=${()=>pl&&go(a.questions)} disabled=${!pl} style=${{width:"100%",background:"#eff6ff",border:"1px solid #ef444433",borderRadius:10,padding:"14px 16px",textAlign:"left",color:"#1e293b",opacity:pl?1:.5,marginBottom:8}}>
