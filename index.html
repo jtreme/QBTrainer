@@ -2834,6 +2834,29 @@ const qImg=(q)=>q&&q.img?html`<img src=${q.img} loading="lazy" style=${{maxWidth
 const shortDate=ts=>ts?new Date(ts).toLocaleDateString(undefined,{month:"short",day:"numeric"}):"—";
 const dayKey=ts=>new Date(ts).toISOString().slice(0,10);
 const daysSince=ts=>ts?Math.floor((Date.now()-ts)/864e5):9999;
+const COMPETITION_DATE={year:2027,month:1,day:6,label:"Feb 6, 2027"};
+const daysUntilCompetition=(now=new Date())=>{
+  const todayUtc=Date.UTC(now.getFullYear(),now.getMonth(),now.getDate());
+  const competitionUtc=Date.UTC(COMPETITION_DATE.year,COMPETITION_DATE.month,COMPETITION_DATE.day);
+  return Math.max(0,Math.ceil((competitionUtc-todayUtc)/864e5));
+};
+const missedQuestionIds=(player,hist,allQs)=>{
+  if(!player)return new Set();
+  const valid=new Set((allQs||[]).map(q=>q&&q.id).filter(Boolean));
+  const stats={};
+  (hist||[]).forEach(h=>{if(h.player!==player||!h.qid||!valid.has(h.qid))return;const s=stats[h.qid]||(stats[h.qid]={c:0,w:0});h.correct?s.c++:s.w++;});
+  return new Set(Object.entries(stats).filter(([_,s])=>s.w>s.c).map(([id])=>id));
+};
+const recommendTopic=(player,hist,allQs)=>{
+  if(!player)return null;
+  const byId={};(allQs||[]).forEach(q=>{if(q&&q.id&&!byId[q.id])byId[q.id]=q;});
+  const drillCats=new Set(["Microeconomics","Macroeconomics","Resource/Policy","Quantitative","Marketing","Agribusiness/Finance","Potpourri"]);
+  const stats={};
+  (hist||[]).forEach(h=>{if(h.player!==player)return;const q=byId[h.qid];if(!q||!drillCats.has(q.cat))return;const topic=getTopic(q);if(q.cat==="Potpourri"&&topic!=="Kansas City")return;const key=(q.cat||"")+"|"+topic;const s=stats[key]||(stats[key]={cat:q.cat,topic,c:0,t:0});s.t++;if(h.correct)s.c++;});
+  const rows=Object.values(stats).filter(s=>s.t>0).map(s=>({...s,acc:Math.round(s.c/s.t*100)}));
+  const established=rows.filter(s=>s.t>=2);
+  return (established.length?established:rows).sort((a,b)=>a.acc-b.acc||b.t-a.t)[0]||null;
+};
 
 
 // ═══ FACT CARDS DATA ═══
@@ -3025,8 +3048,10 @@ function FactCards(){
 const[deck,setDeck]=useState(null);
 const[ix,setIx]=useState(0);
 const[flipped,setFlipped]=useState(false);
+const[mode,setMode]=useState(()=>ld("factmode","term"));
 const[known,setKnown]=useState(()=>ld("factcards",{}));
 useEffect(()=>sv("factcards",known),[known]);
+useEffect(()=>sv("factmode",mode),[mode]);
 
 if(!deck){
   return html`<div class="fu">
@@ -3035,10 +3060,15 @@ if(!deck){
       <div>
         <div class="kicker">📖 Fact Cards</div>
         <h1 class="hero-title" style=${{fontSize:32}}>Study by topic. Know every term cold.</h1>
-        <p class="hero-copy">Tap a deck to start. Flip each card, mark it known or still learning. Famous economists stay separate — their own deck.</p>
+        <p class="hero-copy">Tap a deck to start. Choose whether you see the term or the definition first, flip each card, and mark it known or still learning. Famous economists stay separate — their own deck.</p>
       </div>
     </div>
   </section>
+  <div style=${{background:"#ffffff",border:"1px solid #e2e8f0",borderRadius:16,padding:"14px 16px",marginBottom:16,display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",boxShadow:"0 6px 18px rgba(15,23,42,.05)"}}>
+    <span class="m" style=${{fontSize:14,fontWeight:900,color:"#334155",marginRight:2}}>Choose what appears first:</span>
+    ${[{v:"term",l:"Question first"},{v:"def",l:"Answer first"}].map(o=>html`<button onClick=${()=>setMode(o.v)} aria-pressed=${mode===o.v} style=${{padding:"8px 14px",borderRadius:999,fontSize:14,fontWeight:800,cursor:"pointer",background:mode===o.v?"#7c3aed":"#f1f5f9",color:mode===o.v?"#fff":"#475569",border:"1px solid "+(mode===o.v?"#7c3aed":"#e2e8f0")}}>${o.l}</button>`)}
+    <span style=${{fontSize:13,color:"#64748b"}}>You can change this again inside any deck.</span>
+  </div>
   <div style=${{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(240px,1fr))",gap:12}}>
   ${FACT_DECKS.map(d=>{
     const total=d.cards.length;
@@ -3060,6 +3090,7 @@ if(!deck){
 
 const cards=deck.cards;
 const card=cards[ix];
+const rev=mode==="def";
 const cardKey=deck.id+"_"+card.term;
 const isKnown=known[cardKey];
 const progress=cards.filter(c=>known[deck.id+"_"+c.term]).length;
@@ -3076,6 +3107,11 @@ return html`<div class="fu">
   <span class="m" style=${{fontSize:14,color:"#64748b",marginLeft:"auto"}}>${progress}/${cards.length} known</span>
 </div>
 
+<div style=${{display:"flex",alignItems:"center",gap:8,marginBottom:14,flexWrap:"wrap"}}>
+  <span class="m" style=${{fontSize:13,fontWeight:800,color:"#64748b",letterSpacing:".06em",textTransform:"uppercase"}}>Show first</span>
+  ${[{v:"term",l:"Question first"},{v:"def",l:"Answer first"}].map(o=>html`<button onClick=${()=>{setMode(o.v);setFlipped(false);}} aria-pressed=${mode===o.v} style=${{padding:"7px 14px",borderRadius:999,fontSize:14,fontWeight:800,cursor:"pointer",background:mode===o.v?deck.color:"#f1f5f9",color:mode===o.v?"#fff":"#475569",border:"1px solid "+(mode===o.v?deck.color:"#e2e8f0")}}>${o.l}</button>`)}
+</div>
+
 <div style=${{width:"100%",background:"#e2e8f0",height:4,borderRadius:2,marginBottom:18}}>
   <div style=${{width:(progress/cards.length*100)+"%",height:"100%",background:deck.color,borderRadius:2,transition:"width .3s"}}/>
 </div>
@@ -3089,12 +3125,12 @@ return html`<div class="fu">
   boxShadow:"0 12px 30px rgba(15,23,42,.09)",marginBottom:16
 }}>
   ${!flipped?html`<div>
-    <div style=${{fontSize:12,fontWeight:900,color:deck.color,letterSpacing:".1em",textTransform:"uppercase",marginBottom:12}}>TERM</div>
-    <div style=${{fontSize:24,fontWeight:900,color:"#0f172a",lineHeight:1.2,marginBottom:12}}>${card.term}</div>
-    <div style=${{fontSize:14,color:"#94a3b8",marginTop:8}}>Tap to reveal definition</div>
+    <div style=${{fontSize:12,fontWeight:900,color:deck.color,letterSpacing:".1em",textTransform:"uppercase",marginBottom:12}}>${rev?"ANSWER":"QUESTION"}</div>
+    <div style=${rev?{fontSize:16,fontWeight:600,color:"#0f172a",lineHeight:1.65,maxWidth:520,marginBottom:12}:{fontSize:24,fontWeight:900,color:"#0f172a",lineHeight:1.2,marginBottom:12}}>${rev?card.def:card.term}</div>
+    <div style=${{fontSize:14,color:"#94a3b8",marginTop:8}}>Tap to reveal ${rev?"the question":"the answer"}</div>
   </div>`:html`<div>
-    <div style=${{fontSize:12,fontWeight:900,color:deck.color,letterSpacing:".1em",textTransform:"uppercase",marginBottom:12}}>DEFINITION</div>
-    <div style=${{fontSize:16,fontWeight:600,color:"#e2e8f0",lineHeight:1.65,maxWidth:520}}>${card.def}</div>
+    <div style=${{fontSize:12,fontWeight:900,color:deck.color,letterSpacing:".1em",textTransform:"uppercase",marginBottom:12}}>${rev?"QUESTION":"ANSWER"}</div>
+    <div style=${rev?{fontSize:24,fontWeight:900,color:"#f8fafc",lineHeight:1.25}:{fontSize:16,fontWeight:600,color:"#e2e8f0",lineHeight:1.65,maxWidth:520}}>${rev?card.term:card.def}</div>
   </div>`}
 </div>
 
@@ -3171,6 +3207,8 @@ ${filtered.length>lim&&html`<button onClick=${()=>setLim(l=>l+200)} className="s
 
 function App(){
 const[tab,setTab]=useState("today");
+const[activeStudent,setActiveStudent]=useState("");
+const[topicCompleted,setTopicCompleted]=useState({});
 const[coach,setCoach]=useState(false);
 const[pw,setPw]=useState("");
 const[pwErr,setPwErr]=useState(false);
@@ -3277,6 +3315,9 @@ useEffect(()=>sv("flash",flash),[flash]);
 // Recomputes whenever the pool or the stored session list changes, so sessions
 // always reflect the current questions (single source of truth).
 const named=useMemo(()=>resolveSessions(namedRaw,[...trainQs,...assessQs]),[namedRaw,trainQs,assessQs]);
+const allQs=useMemo(()=>[...trainQs,...assessQs],[trainQs,assessQs]);
+const recommendation=useMemo(()=>recommendTopic(activeStudent,hist,allQs),[activeStudent,hist,allQs]);
+useEffect(()=>{if(activeStudent&&!players.includes(activeStudent))setActiveStudent("");},[players,activeStudent]);
 const sync=(path,setter)=>(fn)=>{const v=typeof fn==="function"?fn(path==="players"?players:path==="training"?trainQs:path==="assess"?assessQs:named):fn;setter(v);fbSet(path,v);};
 const sP=sync("players",setPlayers);
 const sT=sync("training",setTrainQs);
@@ -3323,6 +3364,7 @@ return html`<div className="app-shell">
   </div>
   <div className="header-meta">
     <span className="status-pill red">Wolfpack ready</span>
+    <button onClick=${()=>setTab("today")} className="status-pill" style=${{cursor:"pointer",fontFamily:"inherit"}}>${activeStudent?"Practicing: "+activeStudent:"Choose student"}</button>
     <span className="status-pill">${players.length} players</span>
     <span className="status-pill">${(1200 + hist.length).toLocaleString()} reps logged</span>
   </div>
@@ -3332,14 +3374,14 @@ return html`<div className="app-shell">
 ${tabs.map(t=>{const active=tab===t.id||(["train","flash","assess","topics"].includes(tab)&&t.id==="practice");return html`<button key=${t.id} onClick=${()=>setTab(t.id)} className=${"nav-btn "+(active?"nav-btn-active":"")}>${t.i}<span>${t.l}</span></button>`})}
 </div></div>
 <main className="page-shell">
-${tab==="today"&&html`<${Today} players=${players} hist=${hist} flash=${flash} setTab=${setTab} named=${named} allQs=${[...trainQs,...assessQs]}/>`}
-${tab==="practice"&&html`<${PracticeHome} trainQs=${trainQs} assessQs=${assessQs} named=${named} flash=${flash} setTab=${setTab}/>`}
+${tab==="today"&&html`<${Today} players=${players} hist=${hist} flash=${flash} setTab=${setTab} named=${named} allQs=${allQs} activeStudent=${activeStudent} setActiveStudent=${setActiveStudent} recommendation=${recommendation} topicCompleted=${!!topicCompleted[activeStudent]}/>`}
+${tab==="practice"&&html`<${PracticeHome} trainQs=${trainQs} assessQs=${assessQs} named=${named} flash=${flash} setTab=${setTab} activeStudent=${activeStudent} recommendation=${recommendation}/>`}
 ${["train","flash","assess","topics"].includes(tab)&&html`<button onClick=${()=>setTab("practice")} className="secondary-btn" style=${{marginBottom:12}}>← Practice menu</button>`}
-${tab==="train"&&html`<${Train} qs=${trainQs} players=${players} addH=${addH} addBug=${addBug}/>`}
+${tab==="train"&&html`<${Train} qs=${trainQs} players=${players} addH=${addH} addBug=${addBug} initialPlayer=${activeStudent}/>`}
 ${tab==="flash"&&html`<${Flash} qs=${[...trainQs,...assessQs]} prog=${flash} setProg=${setFlash} addBug=${addBug}/>`}
-${tab==="assess"&&html`<${Assess} qs=${assessQs} players=${players} addH=${addH} named=${named} addFlash=${addFlash} addBug=${addBug}/>`}
-${tab==="topics"&&html`<${TopicDrill} trainQs=${trainQs} assessQs=${assessQs} players=${players} addH=${addH} addFlash=${addFlash} addBug=${addBug}/>`}
-${tab==="missed"&&html`<${MissedDrill} trainQs=${trainQs} assessQs=${assessQs} players=${players} hist=${hist} addH=${addH} addFlash=${addFlash} addBug=${addBug} onBack=${()=>setTab("practice")}/>`}
+${tab==="assess"&&html`<${Assess} qs=${assessQs} players=${players} addH=${addH} named=${named} addFlash=${addFlash} addBug=${addBug} initialPlayer=${activeStudent}/>`}
+${tab==="topics"&&html`<${TopicDrill} trainQs=${trainQs} assessQs=${assessQs} players=${players} addH=${addH} addFlash=${addFlash} addBug=${addBug} initialPlayer=${activeStudent} recommendation=${recommendation} onTopicAttempt=${player=>player&&setTopicCompleted(p=>({...p,[player]:true}))}/>`}
+${tab==="missed"&&html`<${MissedDrill} trainQs=${trainQs} assessQs=${assessQs} players=${players} hist=${hist} addH=${addH} addFlash=${addFlash} addBug=${addBug} onBack=${()=>setTab("practice")} initialPlayer=${activeStudent}/>`}
 ${tab==="facts"&&html`<${FactCards}/>`}
 ${tab==="dash"&&coach&&html`<${CoachDash} players=${players} hist=${hist} trainQs=${trainQs} assessQs=${assessQs} named=${named}/>`}
 ${tab==="build"&&coach&&html`<${Build} addT=${addT} tQs=${trainQs} setT=${sT} aQs=${assessQs} setA=${sA} addAQ=${addAQ}/>`}
@@ -3363,7 +3405,7 @@ ${tab==="coach"&&coach&&html`<div className="fu section-card" style=${{maxWidth:
 }
 
 // ═══ TODAY / PRACTICE HUB ═══
-function Today({players,hist,flash,setTab,named,allQs}){
+function Today({players,hist,flash,setTab,named,allQs,activeStudent,setActiveStudent,recommendation,topicCompleted}){
 const today=dayKey(Date.now());
 const weekCut=Date.now()-7*864e5;
 const todayHist=hist.filter(h=>h.ts&&dayKey(h.ts)===today);
@@ -3375,6 +3417,11 @@ const activeWeek=[...new Set(weekHist.map(h=>h.player).filter(Boolean))].length;
 const flashMissed=Object.values(flash||{}).filter(v=>(v?.w||0)>(v?.r||0)).length;
 const nextAssigned=named&&named.length?named[0]:null;
 const doneTrain=trainToday>=20,doneCheck=checkToday>0;
+const daysToCompetition=daysUntilCompetition();
+const studentToday=activeStudent?todayHist.filter(h=>h.player===activeStudent):[];
+const topicDone=!!activeStudent&&topicCompleted;
+const missedCount=activeStudent?missedQuestionIds(activeStudent,hist,allQs).size:0;
+const reviewDone=!!activeStudent&&missedCount===0;
 const card=(title,sub,done,action,emoji,accent)=>html`<button onClick=${action} className="path-card" style=${{"--accent":accent}}>
   <div className="path-icon">${emoji}</div>
   <div style=${{flex:1,position:"relative"}}>
@@ -3383,25 +3430,44 @@ const card=(title,sub,done,action,emoji,accent)=>html`<button onClick=${action} 
   </div>
 </button>`;
 return html`<div className="fu">
+<section className="section-card" style=${{marginBottom:18,padding:"16px 18px"}}>
+  <div style=${{display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,flexWrap:"wrap",marginBottom:10}}>
+    <div><div className="m" style=${{fontSize:15,fontWeight:900,color:"#334155"}}>WHO’S PRACTICING?</div><div style=${{fontSize:13,color:"#64748b",marginTop:2}}>Choose once for this session. Nothing is saved or changed until a question is answered.</div></div>
+    ${activeStudent&&html`<span style=${{fontSize:14,fontWeight:900,color:"#166534",background:"#dcfce7",padding:"6px 10px",borderRadius:999}}>✓ ${activeStudent}</span>`}
+  </div>
+  <div style=${{display:"flex",gap:7,flexWrap:"wrap"}}>
+    ${players.map(p=>html`<button key=${p} onClick=${()=>setActiveStudent(p)} aria-pressed=${activeStudent===p} style=${{padding:"8px 12px",borderRadius:999,fontSize:14,fontWeight:800,cursor:"pointer",background:activeStudent===p?"#2563eb":"#f8fafc",color:activeStudent===p?"#fff":"#475569",border:"1px solid "+(activeStudent===p?"#2563eb":"#cbd5e1")}}>${p}</button>`)}
+  </div>
+</section>
 <section className="hero-card">
   <div className="hero-inner">
     <div>
-      <div className="kicker">Daily practice</div>
-      <h1 className="hero-title">Train fast. Track progress. Know what to teach next.</h1>
-      <p className="hero-copy">A simple daily rhythm for quiz bowl: get reps, review weak cards, and finish with a short check-in that gives the coach useful topic data.</p>
+      <div className="kicker">Today’s two-step plan</div>
+      <h1 className="hero-title">Practice a topic. Then fix what you missed.</h1>
+      <p className="hero-copy"><b>1.</b> Open the Practice Menu and choose a Topic Drill. <b>2.</b> Finish by reviewing Missed Questions until your list is clear.</p>
     </div>
     <div>
-      <button onClick=${()=>setTab("train")} className="primary-cta">Start Today’s Practice →</button>
-      <div className="cta-note">20 questions · flashcards · check-in</div>
+      <button onClick=${()=>setTab("practice")} className="primary-cta">Open Practice Menu →</button>
+      <div className="cta-note">Topic Drill first · Missed Questions next</div>
     </div>
   </div>
 </section>
+
+${activeStudent&&recommendation&&html`<section className="fu" style=${{background:"#ecfeff",border:"1px solid #67e8f9",borderRadius:16,padding:"14px 16px",marginBottom:14,display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,flexWrap:"wrap"}}>
+  <div><div className="m" style=${{fontSize:15,fontWeight:900,color:"#155e75"}}>Recommended for ${activeStudent}: ${recommendation.topic}</div><div style=${{fontSize:14,color:"#0e7490",marginTop:3}}>${recommendation.c}/${recommendation.t} correct (${recommendation.acc}%) in ${recommendation.cat}. Focus here next.</div></div>
+  <button onClick=${()=>setTab("topics")} className="secondary-btn">Open recommendation →</button>
+</section>`}
+
+${nextAssigned&&html`<section className="fu" style=${{background:"#fff7ed",border:"1px solid #fed7aa",borderRadius:16,padding:"14px 16px",marginBottom:14,display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,flexWrap:"wrap"}}>
+  <div><div className="m" style=${{fontSize:15,fontWeight:900,color:"#9a3412"}}>📌 Coach assignment available</div><div style=${{fontSize:14,color:"#c2410c",marginTop:3}}>${nextAssigned.name}</div></div>
+  <button onClick=${()=>setTab("assess")} className="secondary-btn" style=${{background:"#ffedd5",color:"#9a3412",borderColor:"#fdba74"}}>Open assignment →</button>
+</section>`}
 
 <div className="metric-grid">
   <div className="metric-card"><div className="num m" style=${{color:"#2563eb"}}>${todayHist.length}</div><div className="label">questions today</div></div>
   <div className="metric-card"><div className="num m" style=${{color:todayHist.length?"#059669":"#94a3b8"}}>${todayHist.length?acc+"%":"—"}</div><div className="label">today’s accuracy</div></div>
   <div className="metric-card"><div className="num m" style=${{color:"#ea580c"}}>${activeWeek}/${players.length}</div><div className="label">active this week</div></div>
-  <div className="metric-card"><div className="num m" style=${{color:"#7c3aed"}}>${flashMissed}</div><div className="label">cards needing review</div></div>
+  <div className="metric-card"><div className="num m" style=${{color:"#7c3aed"}}>${daysToCompetition}</div><div className="label">days until ${COMPETITION_DATE.label}</div></div>
 </div>
 
 ${(()=>{
@@ -3422,21 +3488,13 @@ ${(()=>{
 })()}
 
 <div className="path-grid">
-  ${card("Training Quiz",trainToday+"/20 questions logged today",doneTrain,()=>setTab("train"),"⚡","#2563eb")}
-  ${card("Flashcards",flashMissed?flashMissed+" weak cards need review":"Review cards for speed and recall",false,()=>setTab("flash"),"🃏","#7c3aed")}
-  ${card("Check-In",nextAssigned?nextAssigned.name:"Short assessment for coaching data",doneCheck,()=>setTab("assess"),"📝","#059669")}
+  ${card("1. Practice Menu",activeStudent?(topicDone?studentToday.length+" reps logged today":"Choose Topic Drill and focus on one subject"):"Choose your name above, then start a Topic Drill",topicDone,()=>setTab("practice"),"🧭","#0891b2")}
+  ${card("2. Review Missed Questions",activeStudent?(missedCount?missedCount+" questions still need review":"Your missed-question list is clear"):"Choose your name above to see your review list",reviewDone,()=>setTab("missed"),"🎯","#dc2626")}
 </div>
-
-<section className="section-card">
-  <div className="section-header" style=${{marginBottom:0}}>
-    <div><h2 className="section-title m">Practice menu</h2><p className="section-copy">Use this when you want a specific mode instead of the daily path.</p></div>
-    <button onClick=${()=>setTab("practice")} className="secondary-btn">Open Practice Options</button>
-  </div>
-</section>
 </div>`;
 }
 
-function PracticeHome({trainQs,assessQs,named,flash,setTab}){
+function PracticeHome({trainQs,assessQs,named,flash,setTab,activeStudent,recommendation}){
 const flashMissed=Object.values(flash||{}).filter(v=>(v?.w||0)>(v?.r||0)).length;
 const tile=(emoji,title,sub,meta,action,accent)=>html`<button onClick=${action} className="practice-tile" style=${{"--accent":accent}}>
   <div className="practice-icon">${emoji}</div>
@@ -3454,17 +3512,23 @@ return html`<div className="fu">
   </div>
   <section className="section-card">
     <div className="section-header">
-      <div><h2 className="section-title m">Practice Options</h2><p className="section-copy">Pick a mode. For most students, start with Training Quiz and then review Flashcards.</p></div>
+      <div><h2 className="section-title m">Practice</h2><p className="section-copy">Start with a Topic Drill. Then use Missed Questions to clean up what gave you trouble.</p></div>
       <button onClick=${()=>setTab("today")} className="secondary-btn">← Back to Today</button>
     </div>
     <div className="practice-grid">
-      ${tile("⚡","Training Quiz","Timed buzzer-style questions. Best default for daily reps.",trainQs.length+" questions",()=>setTab("train"),"#2563eb")}
-      ${tile("🃏","Flashcards","Review missed questions. Weak cards come back more often.",flashMissed+" weak cards",()=>setTab("flash"),"#7c3aed")}
-      ${tile("🎯","Missed Questions","One place for every question you've gotten wrong, across all modes. Drill them until they clear.","Your personal review pile",()=>setTab("missed"),"#dc2626")}
-      ${tile("📝","Check-In","A short assessment that creates coaching data by category and topic.",assessQs.length+" questions",()=>setTab("assess"),"#059669")}
-      ${tile("📌","Assigned Sets",named.length?"Start a coach-built set from the Check-In screen.":"Coach-created sets will show here once added.",named.length+" sets",()=>setTab("assess"),"#ea580c")}
-      ${tile("🧭","Topic Drill","Pick a subject, then drill one weak subtopic at a time (Elasticity, Externalities, GDP, and more).","Micro · Macro · Policy · Quant",()=>setTab("topics"),"#0891b2")}
+      ${tile("🧭","Topic Drill",recommendation&&activeStudent?("Recommended for "+activeStudent+": "+recommendation.topic+". Pick it below or choose another focused area."):"Pick a subject, then drill one focused area at a time, such as Elasticity, GDP, Policy, or Quantitative methods.",recommendation&&activeStudent?("Start with "+recommendation.topic):"Best place to start",()=>setTab("topics"),"#0891b2")}
+      ${tile("🎯","Missed Questions","Practice only the questions you have answered incorrectly. A question clears after you correct it.","Your personal review pile",()=>setTab("missed"),"#dc2626")}
     </div>
+    <details style=${{marginTop:18,border:"1px solid #e2e8f0",borderRadius:16,background:"#f8fafc",padding:"4px 16px 16px"}}>
+      <summary style=${{padding:"13px 0",cursor:"pointer",fontSize:15,fontWeight:900,color:"#475569"}}>More practice modes</summary>
+      <p style=${{fontSize:14,color:"#64748b",lineHeight:1.5,marginBottom:12}}>These are useful for a specific purpose, but they do not need to be part of the everyday student path.</p>
+      <div className="practice-grid">
+        ${tile("🃏","Weighted Review","A whole-bank recall drill. Questions are weighted by right/wrong history, so weaker cards appear more often.",flashMissed+" weak cards",()=>setTab("flash"),"#7c3aed")}
+        ${tile("⚡","Training Quiz","A timed, mixed-question round for buzzer speed and broad competition practice.",trainQs.length+" questions",()=>setTab("train"),"#2563eb")}
+        ${tile("📝","Check-In","A short assessment used when the coach wants category and topic data.",assessQs.length+" questions",()=>setTab("assess"),"#059669")}
+        ${(named||[]).length?tile("📌","Assigned Sets","Complete a specific set selected by the coach.",named.length+" assigned",()=>setTab("assess"),"#ea580c"):null}
+      </div>
+    </details>
   </section>
 </div>`;
 }
@@ -3559,9 +3623,9 @@ ${list.length===0?html`<p style=${{fontSize:15,color:"#94a3b8"}}>No ${showDone?"
 </div>`;
 }
 
-function Train({qs,players,addH,addBug}){
+function Train({qs,players,addH,addBug,initialPlayer}){
 const[ph,setPh]=useState("setup");
-const[pl,setPl]=useState("");
+const[pl,setPl]=useState(initialPlayer||"");
 const[cats,setCats]=useState([...CATS]);
 const[srcF,setSrcF]=useState("All");
 const SRCS=["All","Core","24 SAEA","25 SAEA","26 SAEA"];
@@ -3582,9 +3646,10 @@ if(ph==="setup")return html`<div class="fu">
 <h2 class="m" style=${{fontSize:18,fontWeight:800,marginBottom:6}}>⚡ Training Quiz</h2>
 <p style=${{fontSize:16,color:"#64748b",marginBottom:16}}>${qs.length?'Drill daily! Pick your name and go.':'Questions coming soon!'}</p>
 ${qs.length>0&&html`<div>
+${initialPlayer?html`<div style=${{background:"#eff6ff",border:"1px solid #93c5fd",borderRadius:10,padding:"10px 12px",marginBottom:14,fontSize:15,fontWeight:800,color:"#1d4ed8"}}>Practicing as ${initialPlayer}</div>`:html`<div>
 <label class="m" style=${{fontSize:18,fontWeight:700,color:"#2563eb",display:"block",marginBottom:6}}>WHO ARE YOU?</label>
 <div style=${{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(130px,1fr))",gap:6,marginBottom:16}}>
-${players.map(p=>html`<button onClick=${()=>setPl(p)} style=${{padding:13,borderRadius:8,fontSize:16,fontWeight:pl===p?700:500,background:pl===p?"#2563eb":"#ffffff",border:"2px solid "+(pl===p?"#2563eb":"#e2e8f0"),color:pl===p?"#ffffff":"#1a202c"}}>${p}</button>`)}</div>
+${players.map(p=>html`<button onClick=${()=>setPl(p)} style=${{padding:13,borderRadius:8,fontSize:16,fontWeight:pl===p?700:500,background:pl===p?"#2563eb":"#ffffff",border:"2px solid "+(pl===p?"#2563eb":"#e2e8f0"),color:pl===p?"#ffffff":"#1a202c"}}>${p}</button>`)}</div></div>`}
 ${qs.some(q=>q.src)&&html`<div style=${{display:"flex",flexWrap:"wrap",gap:5,marginBottom:10}}>
 ${SRCS.map(sname=>{const n=sname==="All"?qs.length:(sname==="Core"?qs.filter(q=>!q.src).length:qs.filter(q=>q.src===sname).length);return n===0?null:html`<button onClick=${()=>setSrcF(sname)} style=${{padding:"7px 12px",borderRadius:12,fontSize:15,fontWeight:700,background:srcF===sname?"#2563eb":"#ffffff",color:srcF===sname?"#ffffff":"#64748b",border:"1px solid "+(srcF===sname?"#2563eb":"#e2e8f0")}}>${sname} (${n})</button>`;})}
 </div>`}
@@ -3644,6 +3709,7 @@ function Flash({qs,prog,setProg,addBug}){
 const[cat,setCat]=useState("All");
 const[dk,setDk]=useState([]);const[ix,setIx]=useState(0);
 const[flip,setFlip]=useState(false);const[on,setOn]=useState(false);
+const[side,setSide]=useState("question");
 const go=()=>{let p=cat==="All"?[...qs]:qs.filter(q=>q.cat===cat);
 p=p.map(q=>{const r=prog[q.id]||{r:0,w:0};return{...q,wt:Math.max(.1,1+r.w*2-r.r*.5)}}).sort((a,b)=>b.wt-a.wt).slice(0,30);
 for(let i=p.length-1;i>0;i--){const j=0|Math.random()*(i+1);if(Math.random()<.3)[p[i],p[j]]=[p[j],p[i]];}
@@ -3652,32 +3718,43 @@ const mark=(ok)=>{const q=dk[ix];setProg(p=>({...p,[q.id]:{r:(p[q.id]?.r||0)+(ok
 if(ix+1>=dk.length){setOn(false);return;}setIx(i=>i+1);setFlip(false)};
 
 if(!on)return html`<div class="fu">
-<h2 class="m" style=${{fontSize:18,fontWeight:800,marginBottom:6}}>🃏 Flashcard Drill</h2>
-<p style=${{fontSize:16,color:"#64748b",marginBottom:16}}>${qs.length?"Missed questions come back more often.":"Questions coming soon!"}</p>
+<h2 class="m" style=${{fontSize:18,fontWeight:800,marginBottom:6}}>🃏 Weighted Review</h2>
+<p style=${{fontSize:16,color:"#64748b",marginBottom:16}}>${qs.length?"Review the whole bank. Questions with more misses appear more often.":"Questions coming soon!"}</p>
 ${qs.length>0&&html`<div>
 <div style=${{display:"flex",flexWrap:"wrap",gap:5,marginBottom:16}}>
 <button onClick=${()=>setCat("All")} style=${{padding:"6px 12px",borderRadius:16,fontSize:17,fontWeight:700,background:cat==="All"?"#2563eb20":"#ffffff",color:cat==="All"?"#2563eb":"#64748b",border:"1px solid "+(cat==="All"?"#2563eb44":"#e2e8f0")}}>All (${qs.length})</button>
 ${CATS.map(c=>{const n=qs.filter(q=>q.cat===c).length;return n?html`<button onClick=${()=>setCat(c)} style=${{padding:"6px 12px",borderRadius:16,fontSize:17,fontWeight:700,background:cat===c?CC[c]+"20":"#ffffff",color:cat===c?CC[c]:"#64748b",border:"1px solid "+(cat===c?CC[c]+"44":"#e2e8f0")}}>${c} (${n})</button>`:null})}</div>
+<div style=${{background:"#ffffff",border:"1px solid #e2e8f0",borderRadius:14,padding:"13px 15px",marginBottom:16,display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+  <span class="m" style=${{fontSize:14,fontWeight:900,color:"#334155",marginRight:2}}>Choose what appears first:</span>
+  ${[{v:"question",l:"Question first"},{v:"answer",l:"Answer first"}].map(o=>html`<button onClick=${()=>setSide(o.v)} aria-pressed=${side===o.v} style=${{padding:"8px 14px",borderRadius:999,fontSize:14,fontWeight:800,cursor:"pointer",background:side===o.v?"#7c3aed":"#f1f5f9",color:side===o.v?"#fff":"#475569",border:"1px solid "+(side===o.v?"#7c3aed":"#e2e8f0")}}>${o.l}</button>`)}
+</div>
 <button onClick=${go} style=${{background:"linear-gradient(135deg,#7c3aed,#5b21b6)",color:"white",padding:"12px 32px",borderRadius:8,fontWeight:700}}>Start Drill</button>
 </div>`}</div>`;
 
 const cur=dk[ix];
+const showingAnswer=side==="answer"?!flip:flip;
 return html`<div class="fu" style=${{maxWidth:540,margin:"0 auto"}}>
 <div style=${{display:"flex",justifyContent:"space-between",marginBottom:12}}>
 <span class="m" style=${{fontSize:18,color:"#64748b"}}>${ix+1}/${dk.length}</span>
 <button onClick=${()=>setOn(false)} style=${{fontSize:17,color:"#64748b",background:"none",textDecoration:"underline"}}>End</button></div>
-<div onClick=${()=>!flip&&setFlip(true)} style=${{background:flip?"#1a1040":"#ffffff",border:"2px solid "+(flip?"#a78bfa":"#e2e8f0"),borderRadius:16,padding:36,minHeight:220,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",cursor:flip?"default":"pointer",textAlign:"center",transition:"all .3s"}}>
+<div style=${{display:"flex",alignItems:"center",justifyContent:"center",gap:8,marginBottom:12,flexWrap:"wrap"}}>
+  <span class="m" style=${{fontSize:13,fontWeight:800,color:"#64748b",letterSpacing:".06em",textTransform:"uppercase"}}>Show first</span>
+  ${[{v:"question",l:"Question"},{v:"answer",l:"Answer"}].map(o=>html`<button onClick=${()=>{setSide(o.v);setFlip(false);}} aria-pressed=${side===o.v} style=${{padding:"7px 13px",borderRadius:999,fontSize:14,fontWeight:800,cursor:"pointer",background:side===o.v?"#7c3aed":"#f1f5f9",color:side===o.v?"#fff":"#475569",border:"1px solid "+(side===o.v?"#7c3aed":"#e2e8f0")}}>${o.l}</button>`)}
+</div>
+<div onClick=${()=>setFlip(f=>!f)} role="button" tabIndex="0" onKeyDown=${e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();setFlip(f=>!f);}}} aria-label=${showingAnswer?"Showing answer. Activate to show question.":"Showing question. Activate to show answer."} style=${{background:showingAnswer?"#1a1040":"#ffffff",border:"2px solid "+(showingAnswer?"#a78bfa":"#e2e8f0"),borderRadius:16,padding:36,minHeight:220,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",cursor:"pointer",textAlign:"center",transition:"all .3s"}}>
 <span style=${{fontSize:16,fontWeight:700,color:CC[cur.cat],marginBottom:12}}>${cur.cat} · ${cur.pts} pts</span>
-${!flip?html`<div>
+${!showingAnswer?html`<div>
+<p class="m" style=${{fontSize:13,fontWeight:800,color:"#64748b",letterSpacing:".06em",textTransform:"uppercase",marginBottom:10}}>QUESTION</p>
 <p style=${{fontSize:17,lineHeight:1.5,fontWeight:700,marginBottom:14}}>${cur.q}</p>
 ${qImg(cur)}
 ${cur.src&&html`<div style=${{marginBottom:10}}>${srcBadge(cur.src)}</div>`}
 ${cur.type==="mc"&&cur.options&&html`<div style=${{fontSize:18,color:"#64748b",textAlign:"left",width:"100%"}}>${cur.options.map((o,i)=>html`<div style=${{marginBottom:3}}>${["A","B","C","D"][i]}. ${o}</div>`)}</div>`}
-<p style=${{fontSize:17,color:"#94a3b8",marginTop:12}}>Tap to reveal</p>
+<p style=${{fontSize:17,color:"#94a3b8",marginTop:12}}>Tap to reveal the answer</p>
 </div>`:html`<div class="fr">
 <p class="m" style=${{fontSize:16,fontWeight:700,color:"#a78bfa",marginBottom:10}}>ANSWER</p>
 <p style=${{fontSize:24,fontWeight:800,color:"#f8fafc"}}>${ansText(cur)}</p>
 ${explText(cur)&&html`<p style=${{fontSize:15,lineHeight:1.5,color:"#ddd6fe",marginTop:14,maxWidth:420}}><b style=${{color:"#a78bfa"}}>Why: </b>${explText(cur)}</p>`}
+<p style=${{fontSize:17,color:"#a78bfa",marginTop:14}}>Tap to reveal the question</p>
 </div>`}
 </div>
 ${flip&&html`<div class="fu" style=${{display:"flex",gap:10,marginTop:16}}>
@@ -3694,8 +3771,8 @@ ${flip&&html`<div class="fu" style=${{display:"flex",gap:10,marginTop:16}}>
 // modes. Source of truth is the Firebase attempt history (not the per-device
 // flash pile), so it follows the student and spans Training/Check-In/Topic Drill.
 // A question clears once their correct count catches up to their wrong count.
-function MissedDrill({trainQs,assessQs,players,hist,addH,addFlash,addBug,onBack}){
-const[who,setWho]=useState(null);
+function MissedDrill({trainQs,assessQs,players,hist,addH,addFlash,addBug,onBack,initialPlayer}){
+const[who,setWho]=useState(initialPlayer||null);
 const allQs=useMemo(()=>{const u={};[...trainQs,...assessQs].forEach(q=>{if(q&&q.id&&!u[q.id])u[q.id]=q});return Object.values(u)},[trainQs,assessQs]);
 const missedFor=(name)=>{const st={};hist.forEach(h=>{if(h.player!==name||!h.qid)return;const s=st[h.qid]||(st[h.qid]={c:0,w:0});if(h.correct)s.c++;else s.w++});const ids=new Set(Object.keys(st).filter(id=>(st[id].w||0)>(st[id].c||0)));return allQs.filter(q=>ids.has(q.id))};
 if(!who){
@@ -3857,7 +3934,7 @@ const TOPIC_CATS=[
   {cat:"*",emoji:"🎥",color:"#8f1a1a",label:"Zoom July 19",only:"ZoomJuly19",sub:"July 19 Zoom Jeopardy rounds · instant feedback with explanations"},
   {cat:"*",emoji:"🎥",color:"#b45309",label:"Zoom July 21",only:"ZoomJuly21",sub:"July 21 Zoom Jeopardy · Rounds C & D · instant feedback"},
 ];
-function TopicDrill({trainQs,assessQs,players,addH,addFlash,addBug}){
+function TopicDrill({trainQs,assessQs,players,addH,addFlash,addBug,initialPlayer,recommendation,onTopicAttempt}){
 const[cat,setCat]=useState(null);
 const[topic,setTopic]=useState(null);
 const allQs=useMemo(()=>[...trainQs,...assessQs],[trainQs,assessQs]);
@@ -3867,9 +3944,9 @@ if(topic){
   const dm=TOPIC_CATS.find(c=>c.cat===cat);
   const back=dm&&dm.only?()=>{setTopic(null);setCat(null);}:()=>setTopic(null);
   const sub=dm&&dm.only?(dm.sub||"Kansas City competition prep · instant feedback with explanations"):"Part of "+cat+" · instant feedback with explanations";
-  return html`<${Assess} qs=${filtered} players=${players} addH=${addH} named=${[]} addFlash=${addFlash} addBug=${addBug}
+  return html`<${Assess} qs=${filtered} players=${players} addH=${ev=>{addH(ev);if(onTopicAttempt)onTopicAttempt(ev.player);}} named=${[]} addFlash=${addFlash} addBug=${addBug}
     title=${"🎯 "+topic} subtitle=${sub}
-    startLabel=${"Start "+topic+" Drill"} onBack=${back}/>`;
+    startLabel=${"Start "+topic+" Drill"} onBack=${back} initialPlayer=${initialPlayer}/>`;
 }
 
 if(cat){
@@ -3897,6 +3974,11 @@ return html`<div class="fu">
 <h2 class="m" style=${{fontSize:20,fontWeight:800,marginBottom:4}}>🧭 Topic Drill</h2>
 <p style=${{fontSize:16,color:"#64748b",marginBottom:6}}>Pick a subject, then a subtopic to focus your practice on one weak spot at a time.</p>
 <p style=${{fontSize:14,color:"#94a3b8",marginBottom:16}}>Pulls from the Training Quiz bank and the Check-In bank, including all 2024–2026 SAEA questions — each question shows its source badge during the drill.</p>
+${recommendation&&initialPlayer&&html`<button onClick=${()=>{setCat(recommendation.cat);setTopic(recommendation.topic);}} style=${{width:"100%",background:"#ecfeff",border:"2px solid #22d3ee",borderRadius:14,padding:"14px 16px",textAlign:"left",marginBottom:16,cursor:"pointer"}}>
+  <span class="m" style=${{display:"block",fontSize:15,fontWeight:900,color:"#155e75"}}>Recommended for ${initialPlayer}</span>
+  <span style=${{display:"block",fontSize:19,fontWeight:900,color:"#0e7490",margin:"3px 0"}}>${recommendation.topic}</span>
+  <span style=${{fontSize:14,color:"#0e7490"}}>${recommendation.acc}% accuracy across ${recommendation.t} attempts. Start this drill →</span>
+</button>`}
 <div class="path-grid">
 ${TOPIC_CATS.map(c=>{const n=c.only?allQs.filter(q=>(c.cat==="*"||q.cat===c.cat)&&getTopic(q)===c.only).length:allQs.filter(q=>q.cat===c.cat).length;return html`<button key=${c.cat} onClick=${()=>c.only?(setCat(c.cat),setTopic(c.only)):setCat(c.cat)} className="path-card" style=${{"--accent":c.color}}>
   <div className="path-icon">${c.emoji}</div>
@@ -4092,7 +4174,7 @@ ${["A","B","C","D"].map((l,i)=>html`<input value=${fm.options[i]} onInput=${e=>{
 // ═══ TEAM ═══
 function Team({players,setPlayers,hist,allQs}){
 const[ed,setEd]=useState(null);const[ev,setEv]=useState("");const[nn,setNn]=useState("");
-const days=Math.ceil((new Date("2026-07-31")-new Date())/864e5);
+const days=daysUntilCompetition();
 const gs=n=>{const e=hist.filter(h=>h.player===n),c=e.filter(h=>h.correct),pts=c.reduce((s,h)=>s+(h.pts||0),0),acc=pct(c.length,e.length),daySet=[...new Set(e.map(h=>dayKey(h.ts)))],week=[...new Set(e.filter(h=>(h.ts||0)>=Date.now()-7*864e5).map(h=>dayKey(h.ts)))].length,last=e.reduce((m,h)=>Math.max(m,h.ts||0),0);
 let ses=0;if(e.length){ses=1;const sr=[...e].sort((a,b)=>(a.ts||0)-(b.ts||0));for(let i=1;i<sr.length;i++)if((sr[i].ts||0)-(sr[i-1].ts||0)>12e4)ses++}const distinct=new Set(e.filter(h=>h.qid).map(h=>h.qid)).size;
 let streak=0;{const ds=new Set(daySet);const day=t=>dayKey(Date.now()-t*864e5);if(ds.has(day(0))||ds.has(day(1))){let d=ds.has(day(0))?0:1;while(ds.has(day(d))){streak++;d++}}}
@@ -4123,7 +4205,7 @@ return html`<div class="fu">
 <div style=${{display:"flex",justifyContent:"space-between",flexWrap:"wrap",gap:12,marginBottom:20}}>
 <h2 class="m" style=${{fontSize:18,fontWeight:800}}>👥 Team</h2>
 <div style=${{background:"#2563eb10",border:"1px solid #2563eb33",borderRadius:10,padding:"10px 16px",textAlign:"center"}}>
-<div class="m" style=${{fontSize:24,fontWeight:800,color:"#2563eb"}}>${days}</div><div style=${{fontSize:16,color:"#64748b"}}>days to go</div></div></div>
+<div class="m" style=${{fontSize:24,fontWeight:800,color:"#2563eb"}}>${days}</div><div style=${{fontSize:16,color:"#64748b"}}>days until ${COMPETITION_DATE.label}</div></div></div>
 
 ${reps.length>0&&html`<div style=${{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(300px,1fr))",gap:14,marginBottom:24}}>
 <div><h3 class="m" style=${{fontSize:17,fontWeight:800,color:"#2563eb",marginBottom:4}}>CURRENT STREAK</h3>
