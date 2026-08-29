@@ -2850,9 +2850,9 @@ const missedQuestionIds=(player,hist,allQs)=>{
 const recommendTopic=(player,hist,allQs)=>{
   if(!player)return null;
   const byId={};(allQs||[]).forEach(q=>{if(q&&q.id&&!byId[q.id])byId[q.id]=q;});
-  const drillCats=new Set(["Microeconomics","Macroeconomics","Resource/Policy","Quantitative","Marketing","Agribusiness/Finance","Potpourri"]);
+  const drillCats=new Set(["Microeconomics","Macroeconomics","Resource/Policy","Quantitative","Marketing","Agribusiness/Finance","Management","Potpourri"]);
   const stats={};
-  (hist||[]).forEach(h=>{if(h.player!==player)return;const q=byId[h.qid];if(!q||!drillCats.has(q.cat))return;const topic=getTopic(q);if(q.cat==="Potpourri"&&topic!=="Kansas City")return;const key=(q.cat||"")+"|"+topic;const s=stats[key]||(stats[key]={cat:q.cat,topic,c:0,t:0});s.t++;if(h.correct)s.c++;});
+  (hist||[]).forEach(h=>{if(h.player!==player)return;const q=byId[h.qid];if(!q||!drillCats.has(q.cat))return;const topic=getTopic(q);if(q.cat==="Potpourri"&&topic!=="Kansas City")return;if(q.cat==="Management"&&!['24 SAEA','25 SAEA','26 SAEA'].includes(q.src))return;const key=(q.cat||"")+"|"+topic;const s=stats[key]||(stats[key]={cat:q.cat,topic,c:0,t:0});s.t++;if(h.correct)s.c++;});
   const rows=Object.values(stats).filter(s=>s.t>0).map(s=>({...s,acc:Math.round(s.c/s.t*100)}));
   const established=rows.filter(s=>s.t>=2);
   return (established.length?established:rows).sort((a,b)=>a.acc-b.acc||b.t-a.t)[0]||null;
@@ -3516,7 +3516,7 @@ return html`<div className="fu">
       <button onClick=${()=>setTab("today")} className="secondary-btn">← Back to Today</button>
     </div>
     <div className="practice-grid">
-      ${tile("🧭","Topic Drill",recommendation&&activeStudent?("Recommended for "+activeStudent+": "+recommendation.topic+". Pick it below or choose another focused area."):"Pick a subject, then drill one focused area at a time, such as Elasticity, GDP, Policy, or Quantitative methods.",recommendation&&activeStudent?("Start with "+recommendation.topic):"Best place to start",()=>setTab("topics"),"#0891b2")}
+      ${tile("🧭","Topic Drill",recommendation&&activeStudent?("Recommended for "+activeStudent+": "+recommendation.topic+". Pick it below or choose another focused area."):"Pick a subject, then drill one focused area at a time, such as Elasticity, GDP, Policy, Management, or Quantitative methods.",recommendation&&activeStudent?("Start with "+recommendation.topic):"Best place to start",()=>setTab("topics"),"#0891b2")}
       ${tile("🎯","Missed Questions","Practice only the questions you have answered incorrectly. A question clears after you correct it.","Your personal review pile",()=>setTab("missed"),"#dc2626")}
     </div>
     <details style=${{marginTop:18,border:"1px solid #e2e8f0",borderRadius:16,background:"#f8fafc",padding:"4px 16px 16px"}}>
@@ -3773,7 +3773,7 @@ ${flip&&html`<div class="fu" style=${{display:"flex",gap:10,marginTop:16}}>
 // A question clears once their correct count catches up to their wrong count.
 function MissedDrill({trainQs,assessQs,players,hist,addH,addFlash,addBug,onBack,initialPlayer}){
 const[who,setWho]=useState(initialPlayer||null);
-const allQs=useMemo(()=>{const u={};[...trainQs,...assessQs].forEach(q=>{if(q&&q.id&&!u[q.id])u[q.id]=q});return Object.values(u)},[trainQs,assessQs]);
+const allQs=useMemo(()=>{const u={};[...trainQs,...assessQs,...OKC_DRILL].forEach(q=>{if(q&&q.id&&!u[q.id])u[q.id]=q});return Object.values(u)},[trainQs,assessQs]);
 const missedFor=(name)=>{const st={};hist.forEach(h=>{if(h.player!==name||!h.qid)return;const s=st[h.qid]||(st[h.qid]={c:0,w:0});if(h.correct)s.c++;else s.w++});const ids=new Set(Object.keys(st).filter(id=>(st[id].w||0)>(st[id].c||0)));return allQs.filter(q=>ids.has(q.id))};
 if(!who){
   return html`<div class="fu">
@@ -3923,6 +3923,41 @@ ${fb?html`<button onClick=${next} style=${{width:"100%",padding:16,borderRadius:
 // at render time (nothing pre-stored, nothing new in Firebase), then hands the
 // filtered list to Assess for the actual quiz — same instant-feedback engine,
 // same progress logging, just a different starting question set.
+const OKC_DRILL=[
+  {id:"okc_001",cat:"Potpourri",topic:"Oklahoma City Mix",src:"Visit OKC",pts:10,type:"buzzer",q:"What is the capital of Oklahoma?",a:"Oklahoma City",ex:"Oklahoma City is both the state capital and Oklahoma's largest city."},
+  {id:"okc_002",cat:"Potpourri",topic:"Oklahoma City Mix",src:"Fast Trivia",pts:10,type:"buzzer",q:"Oklahoma shares its entire southern border with which state?",a:"Texas",ex:"Texas lies directly south of Oklahoma across the Red River."},
+  {id:"okc_003",cat:"Potpourri",topic:"Oklahoma City Mix",src:"Visit OKC",pts:10,type:"buzzer",q:"What two-word nickname does Oklahoma City use to describe itself to visitors?",a:"Modern Frontier",ex:"Visit Oklahoma City promotes the city as The Modern Frontier."},
+  {id:"okc_004",cat:"Potpourri",topic:"Oklahoma City Mix",src:"Visit OKC",pts:10,type:"buzzer",q:"What Oklahoma City livestock market is described as the world's largest feeder and stocker cattle market?",a:"National Stockyards",ex:"The National Stockyards is a central part of Oklahoma City's cattle-market history."},
+  {id:"okc_005",cat:"Potpourri",topic:"Oklahoma City Mix",src:"Visit OKC",pts:10,type:"buzzer",q:"Which state capitol was the only one in the United States to have a working oil well on its grounds?",a:"Oklahoma State Capitol",ex:"The Oklahoma State Capitol grounds included the Petunia No. 1 oil well."},
+  {id:"okc_006",cat:"Potpourri",topic:"Oklahoma City Mix",src:"Visit OKC",pts:10,type:"buzzer",q:"Oklahoma City is known as the Horse Show Capital of what?",a:"The world",ex:"Oklahoma City hosts more national and international equine championship events than any other city."},
+
+  {id:"okc_007",cat:"Potpourri",topic:"Oklahoma City Mix",src:"NBA",pts:10,type:"buzzer",q:"What NBA team plays in Oklahoma City?",a:"Oklahoma City Thunder",ex:"The Oklahoma City Thunder began playing in the city in the 2008-09 NBA season."},
+  {id:"okc_008",cat:"Potpourri",topic:"Oklahoma City Mix",src:"NBA",pts:10,type:"buzzer",q:"What is the home arena of the Oklahoma City Thunder?",a:"Paycom Center",ex:"The Thunder's home arena is Paycom Center in downtown Oklahoma City."},
+  {id:"okc_009",cat:"Potpourri",topic:"Oklahoma City Mix",src:"NBA",pts:10,type:"buzzer",q:"In what season did the Thunder first play in Oklahoma City?",a:"2008-09",ex:"The franchise's first Oklahoma City season was 2008-09."},
+  {id:"okc_010",cat:"Potpourri",topic:"Oklahoma City Mix",src:"26 SAEA",pts:10,type:"buzzer",q:"Besides the Kentucky Derby, name either of the other two races in horse racing's Triple Crown.",a:"Preakness Stakes or Belmont Stakes",ex:"The Triple Crown consists of the Kentucky Derby, Preakness Stakes, and Belmont Stakes."},
+  {id:"okc_011",cat:"Potpourri",topic:"Oklahoma City Mix",src:"25 SAEA",pts:10,type:"buzzer",q:"What city was the first to host both the Summer and Winter Olympic Games?",a:"Beijing",ex:"Beijing hosted the 2008 Summer Games and the 2022 Winter Games."},
+  {id:"okc_012",cat:"Potpourri",topic:"Oklahoma City Mix",src:"24 SAEA",pts:10,type:"buzzer",q:"What city hosted the 2024 Summer Olympic Games?",a:"Paris",ex:"Paris hosted the 2024 Summer Olympics."},
+
+  {id:"okc_013",cat:"Potpourri",topic:"Oklahoma City Mix",src:"24 SAEA",pts:10,type:"buzzer",q:"Which video-game character was originally called Jumpman?",a:"Mario",ex:"Nintendo's Mario first appeared under the name Jumpman."},
+  {id:"okc_014",cat:"Potpourri",topic:"Oklahoma City Mix",src:"Fast Trivia",pts:10,type:"buzzer",q:"What Rodgers and Hammerstein musical shares its title with a U.S. state?",a:"Oklahoma!",ex:"Oklahoma! was the first musical written by Rodgers and Hammerstein."},
+  {id:"okc_015",cat:"Potpourri",topic:"Oklahoma City Mix",src:"Fast Trivia",pts:10,type:"buzzer",q:"Which singer is widely known as the King of Pop?",a:"Michael Jackson",ex:"Michael Jackson is widely known by the title King of Pop."},
+  {id:"okc_016",cat:"Potpourri",topic:"Oklahoma City Mix",src:"Fast Trivia",pts:10,type:"buzzer",q:"In The Wizard of Oz, what state is Dorothy from?",a:"Kansas",ex:"Dorothy lives on a farm in Kansas before the tornado carries her to Oz."},
+  {id:"okc_017",cat:"Potpourri",topic:"Oklahoma City Mix",src:"Fast Trivia",pts:10,type:"buzzer",q:"What Oklahoma-born author wrote The Outsiders?",a:"S. E. Hinton",ex:"Tulsa-born author S. E. Hinton wrote The Outsiders while still a teenager."},
+  {id:"okc_018",cat:"Potpourri",topic:"Oklahoma City Mix",src:"Fast Trivia",pts:10,type:"buzzer",q:"What nickname is commonly used for an Academy Award statuette?",a:"Oscar",ex:"The Academy Award statuette is commonly called an Oscar."},
+
+  {id:"okc_019",cat:"Potpourri",topic:"Oklahoma City Mix",src:"USDA 2024",pts:10,type:"buzzer",q:"According to USDA 2024 production data, which state produced the most corn for grain?",a:"Iowa",ex:"Iowa led 2024 U.S. corn-for-grain production."},
+  {id:"okc_020",cat:"Potpourri",topic:"Oklahoma City Mix",src:"USDA 2024",pts:10,type:"buzzer",q:"According to USDA 2024 production data, which state produced the most soybeans?",a:"Illinois",ex:"Illinois led 2024 U.S. soybean production."},
+  {id:"okc_021",cat:"Potpourri",topic:"Oklahoma City Mix",src:"USDA 2024",pts:10,type:"buzzer",q:"According to USDA 2024 production data, which state produced the most wheat of all classes combined?",a:"North Dakota",ex:"North Dakota led total 2024 wheat production when all wheat classes were combined."},
+  {id:"okc_022",cat:"Potpourri",topic:"Oklahoma City Mix",src:"USDA 2024",pts:10,type:"buzzer",q:"According to USDA 2024 production data, which state produced the most winter wheat?",a:"Kansas",ex:"Kansas led 2024 U.S. winter wheat production."},
+  {id:"okc_023",cat:"Potpourri",topic:"Oklahoma City Mix",src:"USDA 2024",pts:10,type:"buzzer",q:"According to USDA 2024 production data, which state produced the most rice?",a:"Arkansas",ex:"Arkansas led 2024 U.S. rice production."},
+  {id:"okc_024",cat:"Potpourri",topic:"Oklahoma City Mix",src:"USDA 2024",pts:10,type:"buzzer",q:"According to USDA 2024 production data, which state produced the most upland cotton?",a:"Texas",ex:"Texas led 2024 U.S. upland cotton production."},
+  {id:"okc_025",cat:"Potpourri",topic:"Oklahoma City Mix",src:"USDA 2024",pts:10,type:"buzzer",q:"According to USDA 2024 production data, which state produced the most strawberries?",a:"California",ex:"California led 2024 U.S. strawberry production."},
+  {id:"okc_026",cat:"Potpourri",topic:"Oklahoma City Mix",src:"USDA 2024",pts:10,type:"buzzer",q:"According to USDA 2024 production data, which state produced the most tomatoes?",a:"California",ex:"California led 2024 U.S. tomato production."},
+  {id:"okc_027",cat:"Potpourri",topic:"Oklahoma City Mix",src:"USDA 2024",pts:10,type:"buzzer",q:"According to USDA 2024 production data, which state produced the most apples?",a:"Washington",ex:"Washington led 2024 U.S. apple production."},
+  {id:"okc_028",cat:"Potpourri",topic:"Oklahoma City Mix",src:"USDA 2024",pts:10,type:"buzzer",q:"According to USDA 2024 production data, which state produced the most potatoes?",a:"Idaho",ex:"Idaho led 2024 U.S. potato production."},
+  {id:"okc_029",cat:"Potpourri",topic:"Oklahoma City Mix",src:"USDA 2024",pts:10,type:"buzzer",q:"On January 1, 2025, which state had the largest inventory of cattle and calves?",a:"Texas",ex:"USDA reported 12.1 million cattle and calves in Texas, the largest state inventory."},
+  {id:"okc_030",cat:"Potpourri",topic:"Oklahoma City Mix",src:"USDA 2024",pts:10,type:"buzzer",q:"According to USDA 2024 data, which state produced the most milk?",a:"California",ex:"California led 2024 U.S. milk production."},
+];
 const TOPIC_CATS=[
   {cat:"Microeconomics",emoji:"📉",color:"#2563eb",label:"Microeconomics"},
   {cat:"Macroeconomics",emoji:"🌐",color:"#3b82f6",label:"Macroeconomics"},
@@ -3930,20 +3965,22 @@ const TOPIC_CATS=[
   {cat:"Quantitative",emoji:"🧮",color:"#f59e0b",label:"Quantitative"},
   {cat:"Marketing",emoji:"📣",color:"#ec4899",label:"Marketing"},
   {cat:"Agribusiness/Finance",emoji:"💰",color:"#10b981",label:"Finance & Accounting"},
-  {cat:"Potpourri",emoji:"🏙️",color:"#f97316",label:"Kansas City",only:"Kansas City"},
+  {cat:"Management",emoji:"🧑‍💼",color:"#06b6d4",label:"Management",sources:["24 SAEA","25 SAEA","26 SAEA"],sub:"Management questions from the 2024, 2025, and 2026 SAEA competitions"},
+  {cat:"*",emoji:"🏙️",color:"#f97316",label:"Oklahoma City",only:"Oklahoma City Mix",sub:"30 rapid-recall questions mixing Oklahoma City, geography, sports, entertainment, and USDA agricultural production facts"},
   {cat:"*",emoji:"🎥",color:"#8f1a1a",label:"Zoom July 19",only:"ZoomJuly19",sub:"July 19 Zoom Jeopardy rounds · instant feedback with explanations"},
   {cat:"*",emoji:"🎥",color:"#b45309",label:"Zoom July 21",only:"ZoomJuly21",sub:"July 21 Zoom Jeopardy · Rounds C & D · instant feedback"},
 ];
 function TopicDrill({trainQs,assessQs,players,addH,addFlash,addBug,initialPlayer,recommendation,onTopicAttempt}){
 const[cat,setCat]=useState(null);
 const[topic,setTopic]=useState(null);
-const allQs=useMemo(()=>[...trainQs,...assessQs],[trainQs,assessQs]);
+const allQs=useMemo(()=>[...trainQs,...assessQs,...OKC_DRILL],[trainQs,assessQs]);
+const matchesMeta=(q,meta)=>!!meta&&(meta.cat==="*"||q.cat===meta.cat)&&(!meta.sources||meta.sources.includes(q.src))&&(!meta.only||getTopic(q)===meta.only);
 
 if(topic){
-  const filtered=allQs.filter(q=>(cat==="*"||q.cat===cat)&&getTopic(q)===topic);
-  const dm=TOPIC_CATS.find(c=>c.cat===cat);
+  const dm=TOPIC_CATS.find(c=>c.cat===cat&&(!c.only||c.only===topic))||TOPIC_CATS.find(c=>c.cat===cat);
+  const filtered=allQs.filter(q=>matchesMeta(q,dm)&&getTopic(q)===topic);
   const back=dm&&dm.only?()=>{setTopic(null);setCat(null);}:()=>setTopic(null);
-  const sub=dm&&dm.only?(dm.sub||"Kansas City competition prep · instant feedback with explanations"):"Part of "+cat+" · instant feedback with explanations";
+  const sub=dm&&dm.sub?dm.sub+" · instant feedback with explanations":dm&&dm.only?dm.label+" competition prep · instant feedback with explanations":"Part of "+cat+" · instant feedback with explanations";
   return html`<${Assess} qs=${filtered} players=${players} addH=${ev=>{addH(ev);if(onTopicAttempt)onTopicAttempt(ev.player);}} named=${[]} addFlash=${addFlash} addBug=${addBug}
     title=${"🎯 "+topic} subtitle=${sub}
     startLabel=${"Start "+topic+" Drill"} onBack=${back} initialPlayer=${initialPlayer}/>`;
@@ -3952,7 +3989,7 @@ if(topic){
 if(cat){
   const meta=TOPIC_CATS.find(c=>c.cat===cat);
   const byTopic={};
-  allQs.filter(q=>q.cat===cat).forEach(q=>{const t=getTopic(q);if(!byTopic[t])byTopic[t]={n:0,saea:0};byTopic[t].n++;if(q.src)byTopic[t].saea++;});
+  allQs.filter(q=>matchesMeta(q,meta)).forEach(q=>{const t=getTopic(q);if(!byTopic[t])byTopic[t]={n:0,saea:0};byTopic[t].n++;if(q.src)byTopic[t].saea++;});
   const rows=Object.entries(byTopic).filter(([t])=>!meta.only||t===meta.only).sort((a,b)=>b[1].n-a[1].n);
   return html`<div class="fu">
   <button onClick=${()=>setCat(null)} class="secondary-btn" style=${{marginBottom:14}}>← Subjects</button>
@@ -3973,14 +4010,14 @@ if(cat){
 return html`<div class="fu">
 <h2 class="m" style=${{fontSize:20,fontWeight:800,marginBottom:4}}>🧭 Topic Drill</h2>
 <p style=${{fontSize:16,color:"#64748b",marginBottom:6}}>Pick a subject, then a subtopic to focus your practice on one weak spot at a time.</p>
-<p style=${{fontSize:14,color:"#94a3b8",marginBottom:16}}>Pulls from the Training Quiz bank and the Check-In bank, including all 2024–2026 SAEA questions — each question shows its source badge during the drill.</p>
+<p style=${{fontSize:14,color:"#94a3b8",marginBottom:16}}>Pulls from the Training Quiz and Check-In banks, including all 2024–2026 SAEA questions, plus the Oklahoma City speed-trivia mix. Each question shows its source badge.</p>
 ${recommendation&&initialPlayer&&html`<button onClick=${()=>{setCat(recommendation.cat);setTopic(recommendation.topic);}} style=${{width:"100%",background:"#ecfeff",border:"2px solid #22d3ee",borderRadius:14,padding:"14px 16px",textAlign:"left",marginBottom:16,cursor:"pointer"}}>
   <span class="m" style=${{display:"block",fontSize:15,fontWeight:900,color:"#155e75"}}>Recommended for ${initialPlayer}</span>
   <span style=${{display:"block",fontSize:19,fontWeight:900,color:"#0e7490",margin:"3px 0"}}>${recommendation.topic}</span>
   <span style=${{fontSize:14,color:"#0e7490"}}>${recommendation.acc}% accuracy across ${recommendation.t} attempts. Start this drill →</span>
 </button>`}
 <div class="path-grid">
-${TOPIC_CATS.map(c=>{const n=c.only?allQs.filter(q=>(c.cat==="*"||q.cat===c.cat)&&getTopic(q)===c.only).length:allQs.filter(q=>q.cat===c.cat).length;return html`<button key=${c.cat} onClick=${()=>c.only?(setCat(c.cat),setTopic(c.only)):setCat(c.cat)} className="path-card" style=${{"--accent":c.color}}>
+${TOPIC_CATS.map(c=>{const n=allQs.filter(q=>matchesMeta(q,c)).length;return html`<button key=${c.cat+(c.only||"")} onClick=${()=>c.only?(setCat(c.cat),setTopic(c.only)):setCat(c.cat)} className="path-card" style=${{"--accent":c.color}}>
   <div className="path-icon">${c.emoji}</div>
   <div style=${{flex:1}}>
     <div className="path-title-row"><span className="path-title">${c.label}</span></div>
