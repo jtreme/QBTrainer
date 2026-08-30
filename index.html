@@ -3205,6 +3205,11 @@ ${filtered.length>lim&&html`<button onClick=${()=>setLim(l=>l+200)} className="s
 </div>`;
 }
 
+// A separate flag preserves the name-based identity used by every past attempt.
+// Hex keys work with all Firebase-forbidden punctuation without renaming anyone.
+const alumniKey=name=>"p_"+Array.from(name).map(c=>c.codePointAt(0).toString(16)).join("_");
+const isAlumni=(name,flags={})=>flags[alumniKey(name)]===true;
+
 function App(){
 const[tab,setTab]=useState("today");
 const[activeStudent,setActiveStudent]=useState("");
@@ -3213,16 +3218,27 @@ const[coach,setCoach]=useState(false);
 const[pw,setPw]=useState("");
 const[pwErr,setPwErr]=useState(false);
 const[players,setPlayers]=useState(["Player 1","Player 2","Player 3","Player 4","Player 5","Player 6","Player 7","Player 8"]);
+const[rosterLoaded,setRosterLoaded]=useState(false);
+const[alumniFlags,setAlumniFlags]=useState({});
+const[alumniLoaded,setAlumniLoaded]=useState(false);
+const[alumniLoadError,setAlumniLoadError]=useState("");
 const[trainQs,setTrainQs]=useState([...TRAIN]);
 const[assessQs,setAssessQs]=useState([...ASSESS]);
 const[namedRaw,setNamedRaw]=useState([]);
 const[hist,setHist]=useState([]);
+const[histLoaded,setHistLoaded]=useState(false);
+// MASTERY APP STATE START
+const[masteryChecks,setMasteryChecks]=useState([]);
+const[masteryReviews,setMasteryReviews]=useState({});
+const[masteryLoaded,setMasteryLoaded]=useState({checks:false,reviews:false});
+const masteryReady=masteryLoaded.checks&&masteryLoaded.reviews;
+// MASTERY APP STATE END
 const[flash,setFlash]=useState(()=>ld("flash",{}));
 const[bugReports,setBugReports]=useState([]);
 const[ready,setReady]=useState(false);
 
 useEffect(()=>{
-const r={players:db.ref("players"),training:db.ref("training"),assess:db.ref("assess"),named:db.ref("named"),hist:db.ref("hist"),bugReports:db.ref("bugReports")};
+const r={players:db.ref("players"),alumni:db.ref("alumni"),training:db.ref("training"),assess:db.ref("assess"),named:db.ref("named"),hist:db.ref("hist"),bugReports:db.ref("bugReports")};
 
 // Migration: check localStorage for existing data and push to Firebase if Firebase is empty
 const localPlayers=ld("players",null);
@@ -3231,7 +3247,9 @@ const localTraining=ld("training",null);
 const localAssess=ld("assess",null);
 const localNamed=ld("named",null);
 
-r.players.on("value",s=>{const v=s.val();if(v){const a=Array.isArray(v)?v:Object.values(v);if(a.length)setPlayers(a);}});
+r.players.on("value",s=>{const v=s.val();if(v){const a=Array.isArray(v)?v:Object.values(v);if(a.length){setPlayers(a);setRosterLoaded(true);}}});
+// Read only at startup. Graduation is never inferred and no flags are seeded.
+r.alumni.on("value",s=>{setAlumniFlags(s.val()||{});setAlumniLoaded(true);setAlumniLoadError("");},()=>{setAlumniLoaded(false);setAlumniLoadError("Alumni status could not be loaded. Reload to try again; no records have been changed.");});
 r.training.on("value",s=>{const v=s.val();if(v){const a=Array.isArray(v)?v:Object.values(v);if(a.length){const ids=new Set(a.map(q=>q.id));setTrainQs([...a,...TRAIN.filter(q=>!ids.has(q.id))]);}}});
 r.assess.on("value",s=>{const v=s.val();if(v){const a=Array.isArray(v)?v:Object.values(v);if(a.length){const ids=new Set(a.map(q=>q.id));setAssessQs([...a,...ASSESS.filter(q=>!ids.has(q.id))]);}}});
 r.named.on("value",s=>{const v=s.val();if(v){const a=Array.isArray(v)?v:Object.values(v);
@@ -3244,7 +3262,7 @@ r.named.on("value",s=>{const v=s.val();if(v){const a=Array.isArray(v)?v:Object.v
     return {name:sess.name,qids};
   });
   setNamedRaw(normalized);}});
-r.hist.on("value",s=>{const v=s.val();if(v){const a=Array.isArray(v)?v:Object.values(v);setHist(a);}});
+r.hist.on("value",s=>{const v=s.val();if(v){const a=Array.isArray(v)?v:Object.values(v);setHist(a);}setHistLoaded(true);},()=>setHistLoaded(false));
 r.bugReports.on("value",s=>{const out=[];s.forEach(ch=>{out.push({_key:ch.key,...ch.val()})});setBugReports(out);});
 
 // Seed Firebase: prefer localStorage data over defaults
@@ -3309,6 +3327,15 @@ setReady(true);
 return()=>Object.values(r).forEach(x=>x.off());
 },[]);
 
+// MASTERY APP LISTENERS START
+// No startup writes or migration of old attempts into mastery credit.
+useEffect(()=>{
+  const checksRef=db.ref("masteryChecks"),reviewsRef=db.ref("masteryReviews");
+  checksRef.on("value",s=>{setMasteryChecks(Object.values(s.val()||{}).map(masteryReadCheck));setMasteryLoaded(p=>({...p,checks:true}));},()=>setMasteryLoaded(p=>({...p,checks:false})));
+  reviewsRef.on("value",s=>{setMasteryReviews(Object.fromEntries(Object.entries(s.val()||{}).map(([id,r])=>[id,masteryReadReview(r)])));setMasteryLoaded(p=>({...p,reviews:true}));},()=>setMasteryLoaded(p=>({...p,reviews:false})));
+  return()=>{checksRef.off();reviewsRef.off();};
+},[]);
+// MASTERY APP LISTENERS END
 useEffect(()=>sv("flash",flash),[flash]);
 
 // Resolve the id-only sessions from Firebase against the live question pool.
@@ -3317,11 +3344,30 @@ useEffect(()=>sv("flash",flash),[flash]);
 const named=useMemo(()=>resolveSessions(namedRaw,[...trainQs,...assessQs]),[namedRaw,trainQs,assessQs]);
 const allQs=useMemo(()=>[...trainQs,...assessQs],[trainQs,assessQs]);
 const recommendation=useMemo(()=>recommendTopic(activeStudent,hist,allQs),[activeStudent,hist,allQs]);
-useEffect(()=>{if(activeStudent&&!players.includes(activeStudent))setActiveStudent("");},[players,activeStudent]);
+const rosterReady=rosterLoaded&&alumniLoaded;
+const activePlayers=useMemo(()=>rosterReady?players.filter(p=>!isAlumni(p,alumniFlags)):[],[players,alumniFlags,rosterReady]);
+useEffect(()=>{if(activeStudent&&!activePlayers.includes(activeStudent))setActiveStudent("");},[activePlayers,activeStudent]);
+// The coach's explicit click writes one flag only, never players, hist or a bank.
+const changeAlumniStatus=async(name,graduated)=>{
+  if(!coach||!rosterReady||!players.includes(name))throw new Error("Unlock Coach and wait for the roster to load before changing alumni status.");
+  await db.ref("alumni/"+alumniKey(name)).set(!!graduated);
+};
 const sync=(path,setter)=>(fn)=>{const v=typeof fn==="function"?fn(path==="players"?players:path==="training"?trainQs:path==="assess"?assessQs:named):fn;setter(v);fbSet(path,v);};
 const sP=sync("players",setPlayers);
 const sT=sync("training",setTrainQs);
 const sA=sync("assess",setAssessQs);
+// MASTERY APP WRITERS START
+const saveMasteryCheck=async payload=>{
+  if(!masteryReady||!rosterReady||!activePlayers.includes(payload.player))throw new Error("Active roster and mastery records must be loaded");
+  const saved=await persistMasteryCheck(db,payload);
+  setMasteryChecks(prev=>prev.some(c=>c.id===saved.id)?prev:[...prev,saved]);return saved;
+};
+const saveMasteryReview=async(check,review)=>{
+  if(!masteryReady||!masteryChecks.some(c=>c.id===check.id&&masteryCanonical(c)===masteryCanonical(check)))throw new Error("Saved check must be loaded before review");
+  const saved=await persistMasteryReview(db,check,review,coach);
+  setMasteryReviews(prev=>({...prev,[check.id]:saved}));return saved;
+};
+// MASTERY APP WRITERS END
 const addH=(ev)=>{const entry={...ev,topic:ev.topic||getTopic(ev),ts:Date.now()};setHist(p=>[...p,entry]);db.ref("hist").push(entry).catch(e=>console.error(e));};
 // Student-submitted problem reports. Pushed to Firebase under bugReports so the
 // coach sees them live in the Reports tab. Falls back to localStorage only if
@@ -3365,7 +3411,7 @@ return html`<div className="app-shell">
   <div className="header-meta">
     <span className="status-pill red">Wolfpack ready</span>
     <button onClick=${()=>setTab("today")} className="status-pill" style=${{cursor:"pointer",fontFamily:"inherit"}}>${activeStudent?"Practicing: "+activeStudent:"Choose student"}</button>
-    <span className="status-pill">${players.length} players</span>
+    <span className="status-pill">${rosterReady?activePlayers.length:"…"} active players${rosterReady&&players.length>activePlayers.length?" · "+(players.length-activePlayers.length)+" alumni":""}</span>
     <span className="status-pill">${(1200 + hist.length).toLocaleString()} reps logged</span>
   </div>
 </header>
@@ -3374,20 +3420,22 @@ return html`<div className="app-shell">
 ${tabs.map(t=>{const active=tab===t.id||(["train","flash","assess","topics"].includes(tab)&&t.id==="practice");return html`<button key=${t.id} onClick=${()=>setTab(t.id)} className=${"nav-btn "+(active?"nav-btn-active":"")}>${t.i}<span>${t.l}</span></button>`})}
 </div></div>
 <main className="page-shell">
-${tab==="today"&&html`<${Today} players=${players} hist=${hist} flash=${flash} setTab=${setTab} named=${named} allQs=${allQs} activeStudent=${activeStudent} setActiveStudent=${setActiveStudent} recommendation=${recommendation} topicCompleted=${!!topicCompleted[activeStudent]}/>`}
+${alumniLoadError&&html`<p role="alert" className="section-card" style=${{color:"#b91c1c"}}>${alumniLoadError} Practice names are hidden until their status is available.</p>`}
+${!rosterReady&&!alumniLoadError&&html`<p role="status" style=${{color:"#64748b"}}>Loading active roster and alumni status…</p>`}
+${tab==="today"&&html`<${Today} players=${activePlayers} hist=${hist} flash=${flash} setTab=${setTab} named=${named} allQs=${allQs} activeStudent=${activeStudent} setActiveStudent=${setActiveStudent} recommendation=${recommendation} topicCompleted=${!!topicCompleted[activeStudent]}/>`}
 ${tab==="practice"&&html`<${PracticeHome} trainQs=${trainQs} assessQs=${assessQs} named=${named} flash=${flash} setTab=${setTab} activeStudent=${activeStudent} recommendation=${recommendation}/>`}
 ${["train","flash","assess","topics"].includes(tab)&&html`<button onClick=${()=>setTab("practice")} className="secondary-btn" style=${{marginBottom:12}}>← Practice menu</button>`}
-${tab==="train"&&html`<${Train} qs=${trainQs} players=${players} addH=${addH} addBug=${addBug} initialPlayer=${activeStudent}/>`}
+${tab==="train"&&html`<${Train} qs=${trainQs} players=${activePlayers} addH=${addH} addBug=${addBug} initialPlayer=${activeStudent}/>`}
 ${tab==="flash"&&html`<${Flash} qs=${[...trainQs,...assessQs]} prog=${flash} setProg=${setFlash} addBug=${addBug}/>`}
-${tab==="assess"&&html`<${Assess} qs=${assessQs} players=${players} addH=${addH} named=${named} addFlash=${addFlash} addBug=${addBug} initialPlayer=${activeStudent}/>`}
-${tab==="topics"&&html`<${TopicDrill} trainQs=${trainQs} assessQs=${assessQs} players=${players} addH=${addH} addFlash=${addFlash} addBug=${addBug} initialPlayer=${activeStudent} recommendation=${recommendation} onTopicAttempt=${player=>player&&setTopicCompleted(p=>({...p,[player]:true}))}/>`}
-${tab==="missed"&&html`<${MissedDrill} trainQs=${trainQs} assessQs=${assessQs} players=${players} hist=${hist} addH=${addH} addFlash=${addFlash} addBug=${addBug} onBack=${()=>setTab("practice")} initialPlayer=${activeStudent}/>`}
+${tab==="assess"&&html`<${Assess} qs=${assessQs} players=${activePlayers} addH=${addH} named=${named} addFlash=${addFlash} addBug=${addBug} initialPlayer=${activeStudent}/>`}
+${tab==="topics"&&html`<${TopicDrill} trainQs=${trainQs} assessQs=${assessQs} players=${activePlayers} hist=${hist} historyReady=${histLoaded} onSelectPlayer=${setActiveStudent} addH=${addH} addFlash=${addFlash} addBug=${addBug} initialPlayer=${activeStudent} recommendation=${recommendation} masteryChecks=${masteryChecks} masteryReviews=${masteryReviews} masteryReady=${masteryReady} isCoach=${coach} onSaveMasteryCheck=${saveMasteryCheck} onSaveMasteryReview=${saveMasteryReview} onTopicAttempt=${player=>player&&setTopicCompleted(p=>({...p,[player]:true}))}/>`}
+${tab==="missed"&&html`<${MissedDrill} trainQs=${trainQs} assessQs=${assessQs} players=${activePlayers} hist=${hist} addH=${addH} addFlash=${addFlash} addBug=${addBug} onBack=${()=>setTab("practice")} initialPlayer=${activeStudent}/>`}
 ${tab==="facts"&&html`<${FactCards}/>`}
-${tab==="dash"&&coach&&html`<${CoachDash} players=${players} hist=${hist} trainQs=${trainQs} assessQs=${assessQs} named=${named}/>`}
+${tab==="dash"&&coach&&html`<${CoachDash} players=${activePlayers} hist=${hist} trainQs=${trainQs} assessQs=${assessQs} named=${named}/>`}
 ${tab==="build"&&coach&&html`<${Build} addT=${addT} tQs=${trainQs} setT=${sT} aQs=${assessQs} setA=${sA} addAQ=${addAQ}/>`}
 ${tab==="browse"&&coach&&html`<${BrowseBank} trainQs=${trainQs} assessQs=${assessQs}/>`}
 ${tab==="reports"&&coach&&html`<${BugReports} reports=${bugReports} allQs=${[...trainQs,...assessQs]} editQ=${editQ}/>`}
-${tab==="team"&&html`<${Team} players=${players} setPlayers=${sP} hist=${hist} allQs=${[...trainQs,...assessQs]}/>`}
+${tab==="team"&&html`<${Team} players=${players} setPlayers=${sP} hist=${hist} allQs=${[...trainQs,...assessQs]} alumniFlags=${alumniFlags} onAlumniChange=${changeAlumniStatus} isCoach=${coach} rosterReady=${rosterReady}/>`}
 ${tab==="coach"&&!coach&&html`<div className="fu section-card" style=${{maxWidth:390,margin:"18px auto",textAlign:"center"}}>
 <div style=${{fontSize:44,marginBottom:8}}>🔒</div>
 <h2 className="m" style=${{fontSize:18,fontWeight:900,marginBottom:8}}>Coach Login</h2>
@@ -3413,7 +3461,7 @@ const weekHist=hist.filter(h=>(h.ts||0)>=weekCut);
 const trainToday=todayHist.filter(h=>h.mode==="train").length;
 const checkToday=todayHist.filter(h=>h.mode==="assess").length;
 const acc=pct(todayHist.filter(h=>h.correct).length,todayHist.length);
-const activeWeek=[...new Set(weekHist.map(h=>h.player).filter(Boolean))].length;
+const activeWeek=[...new Set(weekHist.map(h=>h.player).filter(p=>players.includes(p)))].length;
 const flashMissed=Object.values(flash||{}).filter(v=>(v?.w||0)>(v?.r||0)).length;
 const nextAssigned=named&&named.length?named[0]:null;
 const doneTrain=trainToday>=20,doneCheck=checkToday>0;
@@ -3796,7 +3844,7 @@ return html`<${Assess} qs=${missed} players=${[who]} initialPlayer=${who} named=
   startLabel="Start Review" onBack=${()=>setWho(null)}/>`;
 }
 
-function Assess({qs,players,addH,named,title,subtitle,startLabel,onBack,addFlash,addBug,initialPlayer}){
+function Assess({qs,players,addH,named,title,subtitle,startLabel,onBack,addFlash,addBug,initialPlayer,repeatMisses=true,emptyMessage}){
 title=title||"📝 Check-In";subtitle=subtitle||"15 seconds per question!";startLabel=startLabel||"Random Practice";
 const[ph,setPh]=useState("sel");
 const[pl,setPl]=useState(initialPlayer||"");
@@ -3820,7 +3868,7 @@ if(addFlash)addFlash(q.id,ok);
 // Spaced retrieval: if missed, drop this same question back into the deck 10-15
 // questions ahead so the student has to produce it again. Cap at 2 requeues per
 // question (so it appears at most 3 times) to avoid trapping anyone in a loop.
-if(!ok){const seen=rq.current[q.id]||0;if(seen<2){rq.current[q.id]=seen+1;
+if(!ok&&repeatMisses){const seen=rq.current[q.id]||0;if(seen<2){rq.current[q.id]=seen+1;
 const gap=10+Math.floor(Math.random()*6);
 setDk(d=>{const nd=[...d];nd.splice(Math.min(nd.length,ix+gap+1),0,q);return nd;});}}
 clearTimeout(ref.current);setFb({ua,ok});};
@@ -3844,6 +3892,7 @@ ${named.map((a,i)=>{const nNew=(a.questions||[]).filter(q=>isNewQ(q.id)).length;
 <div style=${{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}><span style=${{fontSize:18,fontWeight:700}}>${a.name}</span>${nNew>0&&html`<span style=${{background:"#fef3c7",color:"#92400e",padding:"3px 8px",borderRadius:16,fontSize:14,fontWeight:800}}>✨ ${nNew} new</span>`}</div>
 <div style=${{fontSize:17,color:"#64748b"}}>${a.questions.length} questions</div></button>`})}</div>`}
 ${qs.length>0&&html`<button onClick=${()=>pl&&go(qs)} disabled=${!pl} style=${{background:pl?"#eff6ff":"#ffffff",color:pl?"#2563eb":"#475569",padding:"10px 20px",borderRadius:8,border:"1px solid #cbd5e1"}}>${startLabel} (${qs.length} Qs)</button>`}
+${!qs.length&&emptyMessage&&html`<p role="status" style=${{padding:14,borderRadius:10,background:"#ecfdf5",color:"#166534"}}>${emptyMessage}</p>`}
 </div>`;
 
 if(ph==="done"){const c=answers.filter(a=>a.ok).length,t=answers.length,p=t?Math.round(c/t*100):0,pts=answers.filter(a=>a.ok).reduce((s,a)=>s+a.pts,0);
@@ -3970,20 +4019,82 @@ const TOPIC_CATS=[
   {cat:"*",emoji:"🎥",color:"#8f1a1a",label:"Zoom July 19",only:"ZoomJuly19",sub:"July 19 Zoom Jeopardy rounds · instant feedback with explanations"},
   {cat:"*",emoji:"🎥",color:"#b45309",label:"Zoom July 21",only:"ZoomJuly21",sub:"July 21 Zoom Jeopardy · Rounds C & D · instant feedback"},
 ];
-function TopicDrill({trainQs,assessQs,players,addH,addFlash,addBug,initialPlayer,recommendation,onTopicAttempt}){
+// Coverage matches Team: distinct question ids with any recorded attempt by
+// this exact player, including wrong answers and passes. These are read-only
+// projections; no history, bank, roster or score is changed here.
+const categoryCoverage=(pool,hist,player)=>{
+  const unique=new Map();(pool||[]).forEach(q=>{if(q&&q.id&&!unique.has(q.id))unique.set(q.id,q);});
+  const questions=[...unique.values()];
+  if(!player)return {total:questions.length,attempted:0,remaining:[]};
+  const seen=new Set((hist||[]).filter(h=>h&&h.player===player&&h.qid).map(h=>h.qid));
+  const remaining=questions.filter(q=>!seen.has(q.id));
+  return {total:questions.length,attempted:questions.length-remaining.length,remaining};
+};
+const matchesTopicMeta=(q,meta)=>!!meta&&(meta.cat==="*"||q.cat===meta.cat)&&(!meta.sources||meta.sources.includes(q.src))&&(!meta.only||getTopic(q)===meta.only);
+// Whole-subject coverage includes every source so it matches the Team page.
+// Special prep decks (Oklahoma City / Zoom) retain their own topic boundary.
+// A subtopic uses the exact category/source boundary of its regular drill.
+const categoryCoveragePool=(allQs,meta,subtopic=null)=>!meta?[]:allQs.filter(q=>subtopic!==null?matchesTopicMeta(q,meta)&&getTopic(q)===subtopic:meta.only?matchesTopicMeta(q,meta):q.cat===meta.cat);
+
+function TopicDrill({trainQs,assessQs,players,hist=[],historyReady=false,onSelectPlayer,addH,addFlash,addBug,initialPlayer,recommendation,onTopicAttempt,masteryChecks=[],masteryReviews={},masteryReady=false,isCoach=false,onSaveMasteryCheck,onSaveMasteryReview}){
 const[cat,setCat]=useState(null);
 const[topic,setTopic]=useState(null);
+const[coverageSession,setCoverageSession]=useState(null);
+const[masterySession,setMasterySession]=useState(null);
 const allQs=useMemo(()=>[...trainQs,...assessQs,...OKC_DRILL],[trainQs,assessQs]);
-const matchesMeta=(q,meta)=>!!meta&&(meta.cat==="*"||q.cat===meta.cat)&&(!meta.sources||meta.sources.includes(q.src))&&(!meta.only||getTopic(q)===meta.only);
+const matchesMeta=matchesTopicMeta;
+const selectedPlayer=players.includes(initialPlayer)?initialPlayer:"";
+useEffect(()=>{if(coverageSession&&coverageSession.player!==selectedPlayer)setCoverageSession(null);},[selectedPlayer,coverageSession]);
+useEffect(()=>{if(masterySession&&masterySession.player!==selectedPlayer)setMasterySession(null);},[selectedPlayer,masterySession]);
+const logAttempt=ev=>{addH(ev);if(onTopicAttempt)onTopicAttempt(ev.player);};
+const studentPicker=html`<label style=${{display:"block",fontSize:15,fontWeight:800,color:"#334155",marginBottom:16}}>Practicing as
+  <select aria-label="Student for Topic Drill" value=${selectedPlayer} onChange=${e=>onSelectPlayer&&onSelectPlayer(e.target.value)} class="inp" style=${{display:"block",maxWidth:320,marginTop:6}}>
+  <option value="">Choose your name</option>${players.map(p=>html`<option key=${p} value=${p}>${p}</option>`)}
+  </select>
+</label>`;
+const progressFor=(meta,subtopic=null)=>categoryCoverage(categoryCoveragePool(allQs,meta,subtopic),hist,selectedPlayer);
+const coverageCard=(meta,subtopic=null)=>{
+  const p=progressFor(meta,subtopic);
+  return html`<section style=${{background:"#ecfeff",border:"1px solid #67e8f9",borderRadius:14,padding:18,marginBottom:20}}>
+    <h3 style=${{fontSize:18,fontWeight:900,color:"#155e75",marginBottom:8}}>${subtopic!==null?"Finish this subtopic: "+subtopic:meta.only?"Finish this prep deck":"Finish this category"}</h3>
+    ${!selectedPlayer?html`<p style=${{fontSize:15,color:"#475569"}}>Choose your name above to see which questions you have not attempted.</p>`:!historyReady?html`<p role="status" style=${{fontSize:15,color:"#475569"}}>Waiting for your saved practice history. If this does not load, check your connection and refresh. Unattempted-only practice stays unavailable until history is loaded.</p>`:html`
+    <p role="status" style=${{fontSize:16,fontWeight:800,color:"#155e75",marginBottom:12}}>${selectedPlayer}: ${p.attempted} of ${p.total} attempted · ${p.remaining.length} remaining</p>
+    ${p.remaining.length?html`<button onClick=${()=>setCoverageSession({meta,subtopic,player:selectedPlayer})} className="secondary-btn" style=${{fontSize:16,whiteSpace:"normal",textAlign:"left"}}>Practice questions I haven’t attempted (${p.remaining.length} remaining) →</button>`:html`<p style=${{fontSize:16,fontWeight:800,color:"#166534"}}>${p.total?"Every question attempted! Use Missed Questions next to review incorrect answers.":"There are no questions in this "+(subtopic!==null?"subtopic":"category")+" yet."}</p>`}
+    `}
+    <p style=${{fontSize:14,color:"#475569",lineHeight:1.5,marginTop:10}}>Only questions you have never attempted, ${subtopic!==null?"within this subtopic only":meta.only?"across this prep deck":"across all subtopics"}. Each appears once per run. Stop any time; unanswered questions remain for next time. Coverage means attempted, not mastered.</p>
+    ${meta.sources&&html`<p style=${{fontSize:14,color:"#475569",marginTop:8}}>${subtopic!==null?"This subtopic uses only 2024–2026 SAEA questions, just like its regular drill.":"Whole-category coverage includes all sources, including core questions, to match the Team page. The focused subtopics below still use only 2024–2026 SAEA questions."}</p>`}
+  </section>`;
+};
+
+if(masterySession&&masterySession.player===selectedPlayer){
+  const scope=masterySession;
+  return html`<${MasteryCheck} key=${"mastery:"+scope.player+":"+scope.meta.cat+":"+scope.subtopic} pool=${categoryCoveragePool(allQs,scope.meta,scope.subtopic)} hist=${hist} player=${scope.player} category=${scope.meta.cat} subtopic=${scope.subtopic} checks=${masteryChecks} reviews=${masteryReviews} ready=${historyReady&&masteryReady} isCoach=${isCoach} onSaveCheck=${onSaveMasteryCheck} onSaveReview=${onSaveMasteryReview} onBack=${()=>setMasterySession(null)}/>`;
+}
+if(coverageSession&&coverageSession.player===selectedPlayer){
+  const meta=coverageSession.meta,subtopic=coverageSession.subtopic??null,p=progressFor(meta,subtopic);
+  const scopeLabel=subtopic!==null?meta.label+" / "+subtopic:meta.label;
+  // Assess snapshots qs at Start. History updates shrink this live remaining
+  // list, not the in-progress deck, so answering the last item never unmounts
+  // its feedback/results or shifts question indexes. Restart uses fresh qs.
+  return html`<div class="fu">
+    <div role="status" style=${{background:"#ecfeff",border:"1px solid #67e8f9",borderRadius:12,padding:14,marginBottom:14,color:"#155e75",fontWeight:800}}>${selectedPlayer} · ${scopeLabel}: ${historyReady?p.attempted+" of "+p.total+" attempted · "+p.remaining.length+" remaining":"Waiting for saved practice history"}</div>
+    <${Assess} key=${"unattempted:"+selectedPlayer+":"+scopeLabel} qs=${historyReady?p.remaining:[]} players=${[selectedPlayer]} initialPlayer=${selectedPlayer} named=${[]} addH=${logAttempt} addFlash=${addFlash} addBug=${addBug} repeatMisses=${false}
+      title=${"🎯 "+scopeLabel+" · Unattempted only"}
+      subtitle="Only questions you have not attempted before, with no repeats in this run. Wrong answers and passes count as attempted and are saved for Missed Questions. Finish for now to leave unanswered questions for later."
+      startLabel="Start remaining questions" emptyMessage=${historyReady?"No unattempted questions remain. You can go back and review Missed Questions next.":"Waiting for your saved history. Check your connection and refresh if it does not load."} onBack=${()=>setCoverageSession(null)}/>
+  </div>`;
+}
 
 if(topic){
   const dm=TOPIC_CATS.find(c=>c.cat===cat&&(!c.only||c.only===topic))||TOPIC_CATS.find(c=>c.cat===cat);
   const filtered=allQs.filter(q=>matchesMeta(q,dm)&&getTopic(q)===topic);
   const back=dm&&dm.only?()=>{setTopic(null);setCat(null);}:()=>setTopic(null);
   const sub=dm&&dm.sub?dm.sub+" · instant feedback with explanations":dm&&dm.only?dm.label+" competition prep · instant feedback with explanations":"Part of "+cat+" · instant feedback with explanations";
-  return html`<${Assess} qs=${filtered} players=${players} addH=${ev=>{addH(ev);if(onTopicAttempt)onTopicAttempt(ev.player);}} named=${[]} addFlash=${addFlash} addBug=${addBug}
+  return html`<div>${dm&&html`${studentPicker}${coverageCard(dm,dm.only?null:topic)}`}
+    ${dm&&!dm.only&&html`<${MasteryCard} pool=${filtered} hist=${hist} player=${selectedPlayer} category=${dm.cat} subtopic=${topic} checks=${masteryChecks} reviews=${masteryReviews} ready=${historyReady&&masteryReady} onOpen=${()=>setMasterySession({meta:dm,subtopic:topic,player:selectedPlayer})}/>`}
+    <${Assess} key=${"review:"+selectedPlayer+":"+cat+":"+topic} qs=${filtered} players=${players} addH=${logAttempt} named=${[]} addFlash=${addFlash} addBug=${addBug}
     title=${"🎯 "+topic} subtitle=${sub}
-    startLabel=${"Start "+topic+" Drill"} onBack=${back} initialPlayer=${initialPlayer}/>`;
+    startLabel=${"Start "+topic+" Drill"} onBack=${back} initialPlayer=${initialPlayer}/></div>`;
 }
 
 if(cat){
@@ -3994,40 +4105,226 @@ if(cat){
   return html`<div class="fu">
   <button onClick=${()=>setCat(null)} class="secondary-btn" style=${{marginBottom:14}}>← Subjects</button>
   <h2 class="m" style=${{fontSize:20,fontWeight:800,marginBottom:4}}>${meta.emoji} ${meta.label}</h2>
-  <p style=${{fontSize:16,color:"#64748b",marginBottom:16}}>Pick a subtopic to drill. Bigger subtopics have more question variety.</p>
+  ${studentPicker}${coverageCard(meta)}
+  <p style=${{fontSize:16,color:"#64748b",marginBottom:16}}>Pick a subtopic to practice only its unattempted questions or review the full subtopic. Remaining counts are personal to the student selected above.</p>
   <div style=${{display:"grid",gap:8}}>
-  ${rows.map(([t,s])=>html`<button key=${t} onClick=${()=>setTopic(t)} style=${{width:"100%",background:"#fff",border:"1px solid #e2e8f0",borderRadius:12,padding:"14px 16px",textAlign:"left",display:"flex",justifyContent:"space-between",alignItems:"center",gap:10}}>
+  ${rows.map(([t,s])=>{const p=selectedPlayer&&historyReady?progressFor(meta,t):null;return html`<button key=${t} onClick=${()=>setTopic(t)} style=${{width:"100%",background:"#fff",border:"1px solid #e2e8f0",borderRadius:12,padding:"14px 16px",textAlign:"left",display:"flex",justifyContent:"space-between",alignItems:"center",gap:10}}>
     <div>
       <span style=${{fontSize:17,fontWeight:700,color:"#1e293b",display:"block"}}>${t}</span>
       <span style=${{fontSize:13,color:"#94a3b8"}}>${s.saea>0?(s.saea+" from 2024–26 SAEA"+(s.saea<s.n?" · "+(s.n-s.saea)+" from Training Quiz bank":"")):"Training Quiz bank"}</span>
+      ${p&&html`<span style=${{display:"block",fontSize:14,fontWeight:800,color:p.remaining.length?"#0e7490":"#166534",marginTop:5}}>${p.attempted} of ${p.total} attempted · ${p.remaining.length} remaining${p.total&&!p.remaining.length?" · Every question attempted":""}</span>`}
     </div>
-    <span class="m" style=${{fontSize:14,fontWeight:800,color:meta.color,background:meta.color+"18",padding:"4px 10px",borderRadius:999,whiteSpace:"nowrap"}}>${s.n} Qs</span>
-  </button>`)}
+    <span class="m" style=${{fontSize:14,fontWeight:800,color:meta.color,background:meta.color+"18",padding:"4px 10px",borderRadius:999,whiteSpace:"nowrap"}}>${p?p.total:s.n} Qs</span>
+  </button>`})}
   </div>
   </div>`;
 }
 
 return html`<div class="fu">
 <h2 class="m" style=${{fontSize:20,fontWeight:800,marginBottom:4}}>🧭 Topic Drill</h2>
-<p style=${{fontSize:16,color:"#64748b",marginBottom:6}}>Pick a subject, then a subtopic to focus your practice on one weak spot at a time.</p>
+<p style=${{fontSize:16,color:"#64748b",marginBottom:6}}>Choose your name and a subject. Practice only questions you haven’t attempted to finish its coverage, or pick a subtopic to review.</p>
 <p style=${{fontSize:14,color:"#94a3b8",marginBottom:16}}>Pulls from the Training Quiz and Check-In banks, including all 2024–2026 SAEA questions, plus the Oklahoma City speed-trivia mix. Each question shows its source badge.</p>
+${studentPicker}
 ${recommendation&&initialPlayer&&html`<button onClick=${()=>{setCat(recommendation.cat);setTopic(recommendation.topic);}} style=${{width:"100%",background:"#ecfeff",border:"2px solid #22d3ee",borderRadius:14,padding:"14px 16px",textAlign:"left",marginBottom:16,cursor:"pointer"}}>
   <span class="m" style=${{display:"block",fontSize:15,fontWeight:900,color:"#155e75"}}>Recommended for ${initialPlayer}</span>
   <span style=${{display:"block",fontSize:19,fontWeight:900,color:"#0e7490",margin:"3px 0"}}>${recommendation.topic}</span>
   <span style=${{fontSize:14,color:"#0e7490"}}>${recommendation.acc}% accuracy across ${recommendation.t} attempts. Start this drill →</span>
 </button>`}
 <div class="path-grid">
-${TOPIC_CATS.map(c=>{const n=allQs.filter(q=>matchesMeta(q,c)).length;return html`<button key=${c.cat+(c.only||"")} onClick=${()=>c.only?(setCat(c.cat),setTopic(c.only)):setCat(c.cat)} className="path-card" style=${{"--accent":c.color}}>
+${TOPIC_CATS.map(c=>{const n=allQs.filter(q=>matchesMeta(q,c)).length,p=selectedPlayer&&historyReady?progressFor(c):null;return html`<button key=${c.cat+(c.only||"")} onClick=${()=>c.only?(setCat(c.cat),setTopic(c.only)):setCat(c.cat)} className="path-card" style=${{"--accent":c.color}}>
   <div className="path-icon">${c.emoji}</div>
   <div style=${{flex:1}}>
     <div className="path-title-row"><span className="path-title">${c.label}</span></div>
     <p className="path-sub">${n} questions across all subtopics</p>
+    ${p&&html`<p style=${{fontSize:14,fontWeight:800,color:p.remaining.length?"#0e7490":"#166534",marginTop:8}}>Coverage: ${p.attempted}/${p.total} attempted · ${p.remaining.length} remaining</p>`}
   </div>
 </button>`})}
 </div>
 </div>`;
 }
 
+
+// MASTERY FEATURE START
+// Separate evidence only. None of these helpers writes hist, players, flash,
+// named, training or assess. Existing practice scores are not mastery evidence.
+const MASTERY_RULES={version:1,pass:0.9,gapMs:7*864e5,maxQuestions:15};
+const masteryArray=v=>Array.isArray(v)?v:Object.values(v||{});
+const masteryReadCheck=c=>c&&typeof c==="object"?{...c,questions:masteryArray(c.questions).map(q=>q&&({...q,options:masteryArray(q.options)})),responses:masteryArray(c.responses)}:c;
+const masteryReadReview=r=>r&&typeof r==="object"?{...r,marks:masteryArray(r.marks)}:r;
+const masteryNormalize=s=>String(s??"").normalize("NFKC").trim().toLowerCase().replace(/\s+/g," ");
+const masteryExact=(q,response)=>!!masteryNormalize(response)&&masteryNormalize(response)===masteryNormalize(q.a);
+const masteryUnique=pool=>{const m=new Map();(pool||[]).forEach(q=>{if(q&&q.id&&!m.has(q.id))m.set(q.id,q);});return [...m.values()];};
+const masterySnapshot=q=>({id:q.id,q:String(q.q),a:String(q.a),cat:q.cat||"",topic:getTopic(q),type:q.type||"buzzer",options:Array.isArray(q.options)?q.options.map(String):[],img:q.img||"",ex:explText(q)||""});
+const masteryPool=pool=>{
+  const seen=new Set();return masteryUnique(pool).filter(q=>{
+    if(!q.q||q.a===undefined||q.a===null||!String(q.a).trim())return false;
+    if(q.type==="mc"&&(!Array.isArray(q.options)||q.options.length<2||!q.options["ABCDEFGHIJKLMNOPQRSTUVWXYZ".indexOf(q.a)]))return false;
+    const key=JSON.stringify([masteryNormalize(q.q),q.options||[],masteryNormalize(q.a)]);
+    if(seen.has(key))return false;seen.add(key);return true;
+  });
+};
+const masteryBankKey=pool=>{
+  const text=JSON.stringify(masteryPool(pool).map(masterySnapshot).sort((a,b)=>a.id.localeCompare(b.id)));
+  let hash=2166136261;for(let i=0;i<text.length;i++)hash=Math.imul(hash^text.charCodeAt(i),16777619);
+  return "v1_"+masteryPool(pool).length+"_"+(hash>>>0).toString(16);
+};
+const masteryShuffle=(items,random=Math.random)=>{const out=[...items];for(let i=out.length-1;i>0;i--){const j=Math.floor(random()*(i+1));[out[i],out[j]]=[out[j],out[i]];}return out;};
+const masteryDeck=(pool,prior=[],random=Math.random)=>{
+  const seen=new Set(prior.flatMap(c=>(c.questions||[]).map(q=>q.id)));
+  const eligible=masteryPool(pool);
+  const fresh=masteryShuffle(eligible.filter(q=>!seen.has(q.id)),random);
+  const reused=masteryShuffle(eligible.filter(q=>seen.has(q.id)),random);
+  return masteryShuffle([...fresh,...reused].slice(0,MASTERY_RULES.maxQuestions),random).map(masterySnapshot);
+};
+const masteryValidCheck=c=>!!c&&c.version===1&&typeof c.id==="string"&&/^[a-zA-Z0-9_-]+$/.test(c.id)&&typeof c.player==="string"&&!!c.player&&typeof c.category==="string"&&typeof c.subtopic==="string"&&typeof c.bankKey==="string"&&Number.isFinite(c.startedAt)&&Number.isFinite(c.completedAt)&&c.startedAt>0&&c.completedAt>=c.startedAt&&Array.isArray(c.questions)&&c.questions.length>0&&c.questions.length<=15&&new Set(c.questions.map(q=>q&&q.id)).size===c.questions.length&&c.questions.every(q=>q&&typeof q.id==="string"&&typeof q.q==="string"&&typeof q.a==="string")&&Array.isArray(c.responses)&&c.responses.length===c.questions.length&&c.responses.every(r=>typeof r==="string");
+const masteryValidReview=(c,r)=>!!r&&r.version===1&&r.checkId===c.id&&r.verified===true&&typeof r.validEvidence==="boolean"&&Array.isArray(r.marks)&&r.marks.length===c.questions.length&&r.marks.every(v=>typeof v==="boolean")&&Number.isFinite(r.reviewedAt)&&r.reviewedAt>=c.completedAt&&typeof r.applicationConfirmed==="boolean"&&typeof r.note==="string"&&(!r.applicationConfirmed||r.note.trim().length>=5)&& (r.validEvidence||r.note.trim().length>=5);
+const masteryScore=(c,r)=>{
+  if(!masteryValidReview(c,r)||!r.validEvidence)return null;
+  const correct=r.marks.filter(Boolean).length,total=c.questions.length;
+  return {correct,total,percent:Math.round(correct/total*1000)/10,passed:correct/total>=MASTERY_RULES.pass};
+};
+const masteryHistory=(checks,player,category,subtopic)=>(checks||[]).filter(c=>masteryValidCheck(c)&&c.player===player&&c.category===category&&c.subtopic===subtopic).sort((a,b)=>a.completedAt-b.completedAt||a.id.localeCompare(b.id));
+const masteryStatus=({pool,hist,player,category,subtopic,checks=[],reviews={},ready=true,now=Date.now()})=>{
+  const progress=categoryCoverage(pool,hist,player),bankKey=masteryBankKey(pool);
+  const current=masteryHistory(checks,player,category,subtopic).filter(c=>c.bankKey===bankKey);
+  const base={canStart:false,bankKey,progress,current,dueAt:null};
+  if(!player)return {...base,code:"choose",label:"Choose a student"};
+  if(!ready)return {...base,code:"loading",label:"Waiting for saved history and mastery records"};
+  if(!progress.total||progress.remaining.length)return {...base,code:"locked",label:"Finish subtopic coverage first"};
+  if(!masteryPool(pool).length)return {...base,code:"empty",label:"No usable questions for a check"};
+  if(current.some(c=>!masteryValidReview(c,reviews[c.id])))return {...base,code:"pending",label:"Awaiting coach verification"};
+  const reviewed=current.map(c=>({c,r:reviews[c.id],score:masteryScore(c,reviews[c.id])})).filter(x=>x.score);
+  const last=reviewed.at(-1);
+  if(!last)return {...base,canStart:true,code:"ready",label:"Ready for first mastery check"};
+  if(!last.score.passed)return {...base,canStart:true,code:"practice",label:"Needs practice before another check"};
+  let anchor=null;
+  reviewed.forEach(x=>{if(!x.score.passed)anchor=null;else if(!anchor)anchor=x;});
+  const dueAt=anchor.c.completedAt+MASTERY_RULES.gapMs;
+  if(last.c.id!==anchor.c.id&&last.c.startedAt>=dueAt){
+    const application=last.r.applicationConfirmed&&last.r.note.trim().length>=5;
+    return {...base,dueAt,code:application?"mastered":"application",label:application?"Mastered":"Two passes earned; coach application check needed"};
+  }
+  if(now<dueAt)return {...base,dueAt,code:"waiting",label:"First pass earned; delayed check not yet due"};
+  return {...base,dueAt,canStart:true,code:"retest",label:"Ready for the delayed mastery check"};
+};
+const masteryDate=ts=>new Date(ts).toLocaleString(undefined,{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit"});
+const masterySubmission=(draft,responses,now=Date.now())=>{
+  const payload={version:1,id:draft.id,player:draft.player,category:draft.category,subtopic:draft.subtopic,bankKey:draft.bankKey,startedAt:draft.startedAt,completedAt:now,questions:draft.questions,responses:responses.map(String)};
+  if(!masteryValidCheck(payload))throw new Error("Incomplete mastery check");return payload;
+};
+const masteryCanonical=c=>JSON.stringify([c.version,c.id,c.player,c.category,c.subtopic,c.bankKey,c.startedAt,c.completedAt,c.questions.map(q=>[q.id,q.q,q.a,q.cat,q.topic,q.type,q.options,q.img,q.ex]),c.responses]);
+// Idempotent retry of one completed check; no overwrite of an existing check.
+const persistMasteryCheck=async(database,payload)=>{
+  if(!masteryValidCheck(payload))throw new Error("Invalid mastery check");
+  const result=await database.ref("masteryChecks/"+payload.id).transaction(current=>current||payload,undefined,false);
+  const saved=masteryReadCheck(result.snapshot.val());
+  if(!masteryValidCheck(saved)||masteryCanonical(saved)!==masteryCanonical(payload))throw new Error("Check identity conflict");
+  return saved;
+};
+const persistMasteryReview=async(database,check,review,isCoach)=>{
+  if(!isCoach||!masteryValidCheck(check)||!masteryValidReview(check,review))throw new Error("Coach verification is required");
+  await database.ref("masteryReviews/"+check.id).set(review);return review;
+};
+
+function MasteryCard({pool,hist,player,category,subtopic,checks,reviews,ready,onOpen}){
+  const state=masteryStatus({pool,hist,player,category,subtopic,checks,reviews,ready});
+  return html`<section style=${{padding:18,borderRadius:14,border:"1px solid #c4b5fd",background:"#f5f3ff",marginBottom:20}}>
+    <h3 style=${{fontSize:18,color:"#5b21b6",marginBottom:8}}>🏅 Subtopic Mastery Check</h3>
+    <p role="status" style=${{fontWeight:800,marginBottom:8}}>${state.label}</p>
+    <p style=${{fontSize:15,lineHeight:1.5,marginBottom:12}}>Full coverage unlocks a separate check. Earn two coach-confirmed scores of at least 90%, with seven days between checks, plus success on an unfamiliar example or graph. No changes to existing reps, leaderboard points or practice history.</p>
+    ${state.dueAt&&state.code==="waiting"&&html`<p style=${{fontSize:15,marginBottom:10}}>Next check available: ${masteryDate(state.dueAt)}</p>`}
+    <button className="secondary-btn" disabled=${!player||!ready} onClick=${onOpen}>${state.code==="locked"?"View mastery requirements":"Open Mastery Check"}</button>
+  </section>`;
+}
+
+function MasteryCheck({pool,hist,player,category,subtopic,checks=[],reviews={},ready=false,isCoach=false,onSaveCheck,onSaveReview,onBack}){
+  const[phase,setPhase]=useState("overview"),[draft,setDraft]=useState(null),[ix,setIx]=useState(0),[response,setResponse]=useState("");
+  const[responses,setResponses]=useState([]),[submission,setSubmission]=useState(null),[savedCheck,setSavedCheck]=useState(null);
+  const[error,setError]=useState(""),[saving,setSaving]=useState(false),[leaving,setLeaving]=useState(false);
+  const[reviewId,setReviewId]=useState(null),[marks,setMarks]=useState([]),[evidenceOK,setEvidenceOK]=useState(false),[application,setApplication]=useState(false),[note,setNote]=useState("");
+  const busy=useRef(false);
+  const[now,setNow]=useState(()=>Date.now());
+  useEffect(()=>{const timer=setInterval(()=>setNow(Date.now()),30000);return()=>clearInterval(timer);},[]);
+  const combined=savedCheck&&!checks.some(c=>c.id===savedCheck.id)?[...checks,savedCheck]:checks;
+  const state=masteryStatus({pool,hist,player,category,subtopic,checks:combined,reviews,ready,now});
+  const history=masteryHistory(combined,player,category,subtopic);
+  const selected=history.find(c=>c.id===reviewId)||null;
+  const start=()=>{
+    const live=masteryStatus({pool,hist,player,category,subtopic,checks:combined,reviews,ready,now:Date.now()});
+    if(!live.canStart)return;
+    const questions=masteryDeck(pool,live.current);if(!questions.length)return;
+    const startedAt=Date.now(),id="mc_"+startedAt+"_"+Math.random().toString(36).slice(2,12);
+    setDraft({id,player,category,subtopic,bankKey:live.bankKey,startedAt,questions});setIx(0);setResponse("");setResponses([]);setSubmission(null);setError("");setLeaving(false);setPhase("play");
+  };
+  const save=async payload=>{
+    if(busy.current)return;busy.current=true;setSaving(true);setError("");setPhase("saving");
+    try{const saved=await onSaveCheck(payload);setSavedCheck(saved||payload);setPhase("overview");setDraft(null);setNow(Date.now());}
+    catch(e){setError("This check has not been confirmed saved. Keep this page open and retry. The same check ID is reused, so retrying cannot create duplicate results.");}
+    finally{busy.current=false;setSaving(false);}
+  };
+  const advance=passed=>{
+    if(phase!=="play"||busy.current||(!passed&&!response.trim()))return;
+    const next=[...responses,passed?"":response.trim()];setResponses(next);
+    if(ix+1<draft.questions.length){setIx(ix+1);setResponse("");}
+    else{const payload=masterySubmission(draft,next);setSubmission(payload);save(payload);}
+  };
+  const openReview=c=>{
+    const r=reviews[c.id];setReviewId(c.id);setMarks(masteryValidReview(c,r)?[...r.marks]:c.questions.map((q,i)=>masteryExact(q,c.responses[i])));
+    setEvidenceOK(masteryValidReview(c,r)&&r.validEvidence);setApplication(!!r?.applicationConfirmed);setNote(r?.note||"");setError("");
+  };
+  const confirmReview=async valid=>{
+    if(!isCoach||!selected||busy.current)return;
+    if(valid&&!evidenceOK){setError("Confirm that the questions, keys and accepted responses are valid.");return;}
+    if((application||!valid)&&note.trim().length<5){setError("Add a short note describing the unfamiliar task or why this check should not count.");return;}
+    const review={version:1,checkId:selected.id,verified:true,validEvidence:valid,marks:[...marks],applicationConfirmed:valid&&application,note:note.trim(),reviewedAt:Date.now()};
+    busy.current=true;setSaving(true);setError("");
+    try{await onSaveReview(selected,review);setReviewId(null);setNow(Date.now());}
+    catch(e){setError("Coach verification was not saved. Please retry; existing practice records have not changed.");}
+    finally{busy.current=false;setSaving(false);}
+  };
+  if(phase==="play"){
+    const q=draft.questions[ix];return html`<div class="fu section-card">
+    <h2>Mastery Check: ${subtopic}</h2><p style=${{margin:"8px 0",color:"#64748b"}}>${player} · Question ${ix+1} of ${draft.questions.length} · No hints or feedback until submission</p>
+    <p style=${{fontSize:19,fontWeight:700,margin:"20px 0"}}>${q.q}</p>${qImg(q)}
+    ${q.type==="mc"?html`<div style=${{display:"grid",gap:8}}>${q.options.map((o,i)=>{const letter="ABCDEFGHIJKLMNOPQRSTUVWXYZ"[i];return html`<button key=${letter} aria-pressed=${response===letter} className="secondary-btn" style=${{textAlign:"left",background:response===letter?"#ddd6fe":"#fff"}} onClick=${()=>setResponse(letter)}>${letter}. ${o}</button>`})}</div>`:html`<input aria-label="Mastery answer" class="inp" value=${response} onInput=${e=>setResponse(e.target.value)} onKeyDown=${e=>e.key==="Enter"&&advance(false)} placeholder="Answer without revealing the key"/>`}
+    <div style=${{display:"flex",gap:8,flexWrap:"wrap",marginTop:18}}><button className="secondary-btn" onClick=${()=>advance(true)}>Pass${ix+1===draft.questions.length?" and submit check":""}</button><button className="secondary-btn" disabled=${!response.trim()} onClick=${()=>advance(false)}>${ix+1===draft.questions.length?"Submit completed check":"Save answer and continue"}</button></div>
+    <p style=${{fontSize:14,color:"#64748b",marginTop:12}}>This is untimed recall, not a buzz-speed test. Complete it in one sitting. Unfinished checks are not saved.</p>
+    ${leaving?html`<div role="group" aria-label="Leave unfinished mastery check" style=${{marginTop:16}}><p>Leave without saving this unfinished check?</p><button className="secondary-btn" onClick=${onBack}>Leave without saving</button> <button className="secondary-btn" onClick=${()=>setLeaving(false)}>Keep working</button></div>`:html`<button className="secondary-btn" style=${{marginTop:16}} onClick=${()=>setLeaving(true)}>Leave check</button>`}
+    </div>`;
+  }
+  if(phase==="saving")return html`<div class="section-card"><h2>Submitting mastery check</h2>${error?html`<p role="alert" style=${{margin:"12px 0",color:"#b91c1c"}}>${error}</p>`:html`<p role="status">Saving your completed check separately from practice history. No answer key is revealed until the save is confirmed.</p>`}<button className="secondary-btn" disabled=${saving||!submission} onClick=${()=>save(submission)}>${saving?"Saving…":"Retry saving this check"}</button></div>`;
+  if(selected){
+    const r=reviews[selected.id],score=masteryScore(selected,r),provisional=selected.questions.filter((q,i)=>masteryExact(q,selected.responses[i])).length;
+    return html`<div class="fu section-card"><button className="secondary-btn" disabled=${saving} onClick=${()=>setReviewId(null)}>← Mastery overview</button>
+    <h2 style=${{marginTop:16}}>${subtopic}: submitted check</h2><p>${player} · ${masteryDate(selected.completedAt)}</p>
+    <p style=${{fontWeight:800,margin:"12px 0"}}>${score?"Coach-confirmed: "+score.correct+"/"+score.total+" ("+score.percent+"%)":masteryValidReview(selected,r)&&!r.validEvidence?"Coach marked this check as unusable; it earns no mastery credit.":"Provisional exact matches: "+provisional+"/"+selected.questions.length+". Awaiting coach verification; this is not a mastery pass."}</p>
+    ${error&&html`<p role="alert" style=${{color:"#b91c1c",marginBottom:12}}>${error}</p>`}
+    ${selected.questions.map((q,i)=>html`<article key=${q.id} style=${{border:"1px solid #cbd5e1",padding:14,borderRadius:10,marginBottom:10}}><p style=${{fontWeight:800}}>${i+1}. ${q.q}</p>${qImg(q)}<p style=${{marginTop:8}}>Student answer: ${selected.responses[i]||"(passed)"}${q.type==="mc"&&selected.responses[i]?". "+(q.options["ABCDEFGHIJKLMNOPQRSTUVWXYZ".indexOf(selected.responses[i])]||""):""}</p><p>Stored key: ${ansText(q)}</p>${q.ex&&html`<p style=${{fontSize:14,color:"#64748b",marginTop:6}}>${q.ex}</p>`}${isCoach?html`<label style=${{display:"block",marginTop:10}}><input type="checkbox" checked=${!!marks[i]} disabled=${saving} onChange=${e=>setMarks(prev=>prev.map((m,j)=>j===i?e.target.checked:m))}/> Accept this response as correct</label>`:html`<p style=${{fontSize:14,color:"#64748b"}}>${score?(r.marks[i]?"Coach: correct":"Coach: incorrect"):"Coach review determines the final grade."}</p>`}</article>`)}
+    ${isCoach?html`<section style=${{background:"#f5f3ff",padding:16,borderRadius:12}}>
+      <label style=${{display:"block",marginBottom:12}}><input type="checkbox" checked=${evidenceOK} disabled=${saving} onChange=${e=>setEvidenceOK(e.target.checked)}/> I verified that every item was answerable, the keys are valid, and these marks reflect unaided answers.</label>
+      <label style=${{display:"block",marginBottom:12}}><input type="checkbox" checked=${application} disabled=${saving} onChange=${e=>setApplication(e.target.checked)}/> I also observed this student correctly solve an unfamiliar example or interpret a new graph in this subtopic.</label>
+      <textarea aria-label="Coach mastery evidence note" class="inp" rows="3" placeholder="Describe the unfamiliar task and student's reasoning. Required for application confirmation, or explain why the check should not count." value=${note} onInput=${e=>setNote(e.target.value)} disabled=${saving}/>
+      <div style=${{display:"flex",gap:8,flexWrap:"wrap",marginTop:12}}><button className="secondary-btn" disabled=${saving||!evidenceOK} onClick=${()=>confirmReview(true)}>${saving?"Saving…":"Confirm reviewed results"}</button><button className="secondary-btn" disabled=${saving} onClick=${()=>confirmReview(false)}>Do not count this check</button></div>
+    </section>`:html`<p style=${{fontSize:15,color:"#64748b"}}>A coach must unlock Coach, choose your name, and open this subtopic to verify the check and record application evidence.</p>`}
+    </div>`;
+  }
+  const eligible=masteryPool(pool),n=Math.min(eligible.length,MASTERY_RULES.maxQuestions);
+  return html`<div class="fu section-card"><button className="secondary-btn" onClick=${onBack}>← Subtopic practice</button>
+    <h2 style=${{marginTop:16}}>🏅 Mastery Check: ${subtopic}</h2><p style=${{margin:"8px 0"}}>${player} · ${category}</p>
+    <p role="status" style=${{fontSize:18,fontWeight:900,color:state.code==="mastered"?"#166534":"#5b21b6",margin:"12px 0"}}>${state.label}</p>
+    <p style=${{lineHeight:1.6,marginBottom:12}}>1. Attempt every question in this subtopic. 2. Pass two separate checks at 90% or higher, with at least seven days from the first check's completion to the next check's start. 3. Have a coach verify your answers and success on an unfamiliar example or graph with the delayed check.</p>
+    ${state.dueAt&&["waiting","retest"].includes(state.code)&&html`<p style=${{fontWeight:800,marginBottom:12}}>Delayed check available: ${masteryDate(state.dueAt)}</p>`}
+    <p style=${{fontSize:15,lineHeight:1.5,marginBottom:12}}>${n} distinct questions per check; ${eligible.length} usable prompts available. Later checks prioritize questions not used in earlier mastery checks. Small banks may require repeats.${eligible.length<10?" Small-bank evidence is limited; coach application verification is especially important.":""} No hints or answer feedback until submission. A failed verified check requires practice and two new spaced passes.</p>
+    <p style=${{fontSize:14,color:"#64748b",marginBottom:12}}>This pilot checks the existing question bank. Fresh wording and textbook graph cards have not been added. Coach application evidence is required before the Mastered label appears. Buzz-speed readiness is not measured. These coaching thresholds are not a universal definition of mastery.</p>
+    <button className="secondary-btn" disabled=${!state.canStart} onClick=${start}>Start ${n}-question Mastery Check</button>
+    <p style=${{fontSize:14,color:"#64748b",margin:"12px 0"}}>Mastery results are saved separately. They never add reps, leaderboard points, practice coverage, or entries to Missed Questions. Review missed mastery answers below.</p>
+    ${error&&html`<p role="alert" style=${{color:"#b91c1c"}}>${error}</p>`}
+    <h3 style=${{margin:"18px 0 10px"}}>Saved checks</h3>
+    ${!history.length&&html`<p>No mastery checks saved for this student and subtopic yet.</p>`}
+    ${[...history].reverse().map(c=>{const r=reviews[c.id],score=masteryScore(c,r),old=c.bankKey!==state.bankKey;return html`<div key=${c.id} style=${{padding:12,border:"1px solid #cbd5e1",borderRadius:10,marginBottom:8}}><p style=${{fontWeight:800}}>${masteryDate(c.completedAt)} · ${score?(score.passed?"Pass":"Not passed")+": "+score.correct+"/"+score.total+" ("+score.percent+"%)":masteryValidReview(c,r)?"Not counted":"Awaiting coach verification"}</p>${old&&html`<p style=${{fontSize:14}}>Earlier bank version; retained for reference, not current mastery credit.</p>`}<button className="secondary-btn" onClick=${()=>openReview(c)} style=${{marginTop:8}}>${isCoach?"Review and verify answers":"View submitted answers"}</button></div>`})}
+  </div>`;
+}
+// MASTERY FEATURE END
 
 // ═══ COACH DASHBOARD ═══
 function CoachDash({players,hist,trainQs,assessQs,named}){
@@ -4209,8 +4506,65 @@ ${["A","B","C","D"].map((l,i)=>html`<input value=${fm.options[i]} onInput=${e=>{
 }
 
 // ═══ TEAM ═══
-function Team({players,setPlayers,hist,allQs}){
+function TeamRoster({players,setPlayers,alumniFlags,onAlumniChange,isCoach,rosterReady,statsFor}){
 const[ed,setEd]=useState(null);const[ev,setEv]=useState("");const[nn,setNn]=useState("");
+const[pending,setPending]=useState(null);const[saving,setSaving]=useState(false);
+const[error,setError]=useState("");const[notice,setNotice]=useState("");
+const active=players.filter(p=>!isAlumni(p,alumniFlags));
+const alumni=players.filter(p=>isAlumni(p,alumniFlags));
+const canManage=isCoach&&rosterReady&&!saving;
+const validName=(name,oldName)=>{
+  if(!name){setError("Enter a player name.");return false;}
+  if(players.some(p=>p!==oldName&&p.toLowerCase()===name.toLowerCase())){setError("That name is already on the active roster or in Alumni. Restore the existing player instead of adding a duplicate.");return false;}
+  return true;
+};
+const addPlayer=()=>{const name=nn.trim();if(!canManage||active.length>=12||!validName(name))return;setPlayers(p=>[...p,name]);setNn("");setError("");};
+const saveName=()=>{const name=ev.trim();if(!canManage||!validName(name,ed))return;setPlayers(p=>p.map(x=>x===ed?name:x));setEd(null);setError("");};
+const askStatus=(name,graduated)=>{setPending({name,graduated});setError("");setNotice("");};
+const saveStatus=async()=>{
+  if(!canManage||!pending)return;
+  const change=pending;setSaving(true);setError("");
+  try{await onAlumniChange(change.name,change.graduated);setPending(null);setNotice(change.name+(change.graduated?" moved to Alumni. All existing records and leaderboard results are retained.":" restored to the active roster with their original records."));}
+  catch(e){setError("Could not save alumni status. Please retry when connected. Existing names, history and scores were not changed.");}
+  finally{setSaving(false);}
+};
+return html`<section id="team-roster" style=${{scrollMarginTop:20}}>
+<h3 class="m" style=${{fontSize:19,fontWeight:800,marginBottom:8}}>Players & Alumni</h3>
+<p style=${{fontSize:15,color:"#64748b",marginBottom:12}}>Graduates stay in the original roster and on all existing leaderboards. Alumni status only hides their names from active practice selectors. Restore them any time.</p>
+${!isCoach&&html`<p style=${{fontSize:15,color:"#2563eb",marginBottom:12}}>Unlock Coach, then return to Team to move or restore a player.</p>`}
+${!rosterReady?html`<p role="status">Waiting for the roster and alumni status to load. No roster changes are available yet.</p>`:html`
+${error&&html`<p role="alert" style=${{padding:12,borderRadius:8,background:"#fef2f2",color:"#b91c1c",marginBottom:12}}>${error}</p>`}
+${notice&&html`<p role="status" style=${{padding:12,borderRadius:8,background:"#ecfdf5",color:"#166534",marginBottom:12}}>${notice}</p>`}
+${isCoach&&pending&&html`<div role="group" aria-label="Confirm alumni status" style=${{padding:16,border:"2px solid #7c3aed",background:"#f5f3ff",borderRadius:12,marginBottom:16}}>
+<p style=${{fontWeight:800,marginBottom:6}}>${pending.graduated?"Move "+pending.name+" to Alumni?":"Restore "+pending.name+" to the active roster?"}</p>
+<p style=${{fontSize:15,color:"#475569",marginBottom:12}}>This changes one status flag only. It does not remove or rename the player, erase attempts, change completed questions, or recalculate past scores.</p>
+<div style=${{display:"flex",gap:8,flexWrap:"wrap"}}><button onClick=${saveStatus} disabled=${saving} className="secondary-btn">${saving?"Saving…":pending.graduated?"Confirm move to Alumni":"Confirm restore"}</button><button onClick=${()=>setPending(null)} disabled=${saving} className="secondary-btn">Cancel</button></div>
+</div>`}
+<h4 class="m" style=${{fontSize:16,marginBottom:10}}>Active players (${active.length})</h4>
+${!active.length&&html`<p style=${{color:"#64748b",marginBottom:12}}>No active players. A coach can restore an alumnus or add a new player below.</p>`}
+<div style=${{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:8,marginBottom:16}}>
+${active.map(p=>html`<div key=${p} style=${{background:"#eff6ff",border:"1px solid #93c5fd",borderRadius:10,padding:14}}>
+${isCoach&&ed===p?html`<div>
+<input aria-label=${"Edit name for "+p} value=${ev} onInput=${e=>setEv(e.target.value)} onKeyDown=${e=>e.key==="Enter"&&saveName()} class="inp"/>
+<p style=${{fontSize:13,color:"#64748b",margin:"6px 0"}}>Name edits do not relink old attempts. For a graduate, keep the name and use Move to Alumni.</p>
+<button onClick=${saveName} disabled=${!canManage} className="secondary-btn">Save name</button> <button onClick=${()=>setEd(null)} className="secondary-btn">Cancel</button>
+</div>`:html`<div><strong style=${{fontSize:16}}>${p}</strong>
+${isCoach&&html`<div style=${{display:"flex",gap:6,flexWrap:"wrap",marginTop:10}}><button onClick=${()=>{setEd(p);setEv(p);}} disabled=${!canManage} className="secondary-btn" aria-label=${"Edit "+p}>Edit</button><button onClick=${()=>askStatus(p,true)} disabled=${!canManage} className="secondary-btn" aria-label=${"Move "+p+" to Alumni"}>Move to Alumni</button></div>`}
+</div>`}</div>`)}
+</div>
+${isCoach&&active.length<12&&html`<div style=${{display:"flex",gap:6,flexWrap:"wrap",marginBottom:20}}><input value=${nn} onInput=${e=>setNn(e.target.value)} placeholder="Add player..." aria-label="New player name" onKeyDown=${e=>e.key==="Enter"&&addPlayer()} disabled=${!canManage} class="inp" style=${{maxWidth:240}}/><button onClick=${addPlayer} disabled=${!canManage} className="secondary-btn">Add player</button></div>`}
+<h4 id="team-alumni" class="m" style=${{fontSize:18,color:"#6d28d9",marginBottom:10,scrollMarginTop:20}}>🎓 Alumni (${alumni.length})</h4>
+${!alumni.length&&html`<p style=${{fontSize:15,color:"#64748b",marginBottom:16}}>No one has been moved yet. Graduated teammates will appear here with their records intact.</p>`}
+<div style=${{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:10,marginBottom:20}}>
+${alumni.map(p=>{const s=statsFor(p);return html`<article key=${p} style=${{background:"#f5f3ff",border:"1px solid #c4b5fd",borderRadius:12,padding:16}}>
+<h5 style=${{fontSize:18,marginBottom:8}}>${p}</h5><div style=${{fontSize:15,color:"#475569",lineHeight:1.7}}>${s.total.toLocaleString()} logged attempts · ${s.distinct} distinct questions<br/>${s.acc}% accuracy · ${s.pts.toLocaleString()} earned points<br/>Last practice: ${s.last?shortDate(s.last):"No attempts yet"}</div>
+<p style=${{fontSize:13,color:"#6d28d9",margin:"8px 0"}}>Original records and leaderboard results retained.</p>
+${isCoach&&html`<button onClick=${()=>askStatus(p,false)} disabled=${!canManage} className="secondary-btn" aria-label=${"Restore "+p+" to active roster"}>Restore to active roster</button>`}
+</article>`})}</div>`}
+</section>`;
+}
+
+function Team({players,setPlayers,hist,allQs,alumniFlags,onAlumniChange,isCoach,rosterReady}){
 const days=daysUntilCompetition();
 const gs=n=>{const e=hist.filter(h=>h.player===n),c=e.filter(h=>h.correct),pts=c.reduce((s,h)=>s+(h.pts||0),0),acc=pct(c.length,e.length),daySet=[...new Set(e.map(h=>dayKey(h.ts)))],week=[...new Set(e.filter(h=>(h.ts||0)>=Date.now()-7*864e5).map(h=>dayKey(h.ts)))].length,last=e.reduce((m,h)=>Math.max(m,h.ts||0),0);
 let ses=0;if(e.length){ses=1;const sr=[...e].sort((a,b)=>(a.ts||0)-(b.ts||0));for(let i=1;i<sr.length;i++)if((sr[i].ts||0)-(sr[i-1].ts||0)>12e4)ses++}const distinct=new Set(e.filter(h=>h.qid).map(h=>h.qid)).size;
@@ -4240,7 +4594,7 @@ const card=(p,i,kind)=>html`<div class="fu" style=${{background:i===0?"#2563eb18
 
 return html`<div class="fu">
 <div style=${{display:"flex",justifyContent:"space-between",flexWrap:"wrap",gap:12,marginBottom:20}}>
-<h2 class="m" style=${{fontSize:18,fontWeight:800}}>👥 Team</h2>
+<div><h2 class="m" style=${{fontSize:18,fontWeight:800,marginBottom:10}}>👥 Team</h2><a href="#team-roster" className="secondary-btn" style=${{display:"inline-block",textDecoration:"none"}}>Players & Alumni ↓</a></div>
 <div style=${{background:"#2563eb10",border:"1px solid #2563eb33",borderRadius:10,padding:"10px 16px",textAlign:"center"}}>
 <div class="m" style=${{fontSize:24,fontWeight:800,color:"#2563eb"}}>${days}</div><div style=${{fontSize:16,color:"#64748b"}}>days until ${COMPETITION_DATE.label}</div></div></div>
 
@@ -4268,21 +4622,7 @@ ${redeem.length?redeem.map((p,i)=>html`<div key=${p.name} class="fu" style=${{ba
 </div>`):html`<p style=${{fontSize:16,color:"#64748b"}}>Miss a question, then get it right later — that's a redemption.</p>`}</div>
 </div>`}
 
-<h3 class="m" style=${{fontSize:17,fontWeight:700,color:"#64748b",marginBottom:10}}>PLAYERS</h3>
-<div style=${{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(240px,1fr))",gap:8,marginBottom:16}}>
-${players.map((p,i)=>html`<div style=${{background:"#eff6ff",border:"1px solid #93c5fd",borderRadius:10,padding:14}}>
-${ed===i?html`<div style=${{display:"flex",gap:6}}>
-<input value=${ev} onInput=${e=>setEv(e.target.value)} onKeyDown=${e=>{if(e.key==="Enter"&&ev.trim()){setPlayers(pr=>pr.map((x,j)=>j===i?ev.trim():x));setEd(null)}}} class="inp" style=${{fontSize:15}}/>
-<button onClick=${()=>{if(ev.trim())setPlayers(pr=>pr.map((x,j)=>j===i?ev.trim():x));setEd(null)}} style=${{background:"#10b981",color:"#060a12",padding:"10px 16px",borderRadius:8,fontWeight:700}}>Save</button></div>`
-:html`<div style=${{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-<span style=${{fontSize:16,fontWeight:700}}>${p}</span>
-<div style=${{display:"flex",gap:6}}>
-<button onClick=${()=>{setEd(i);setEv(p)}} style=${{fontSize:18,color:"#2563eb",background:"#2563eb15",padding:"8px 12px",borderRadius:6,fontWeight:700,border:"1px solid #2563eb33"}}>Edit</button>
-${players.length>1&&html`<button onClick=${()=>setPlayers(pr=>pr.filter((_,j)=>j!==i))} style=${{fontSize:18,color:"#ef4444",background:"#ef444415",padding:"8px 10px",borderRadius:6,border:"1px solid #ef444433"}}>×</button>`}
-</div></div>`}</div>`)}</div>
-${players.length<12&&html`<div style=${{display:"flex",gap:6}}>
-<input value=${nn} onInput=${e=>setNn(e.target.value)} placeholder="Add player..." onKeyDown=${e=>{if(e.key==="Enter"&&nn.trim()){setPlayers(p=>[...p,nn.trim()]);setNn("")}}} class="inp" style=${{maxWidth:240}}/>
-<button onClick=${()=>{if(nn.trim()){setPlayers(p=>[...p,nn.trim()]);setNn("")}}} style=${{background:"#2563eb",color:"#ffffff",padding:"8px 16px",borderRadius:6,fontWeight:700}}>Add</button></div>`}
+<${TeamRoster} players=${players} setPlayers=${setPlayers} alumniFlags=${alumniFlags} onAlumniChange=${onAlumniChange} isCoach=${isCoach} rosterReady=${rosterReady} statsFor=${gs}/>
 </div>`;
 }
 
