@@ -3232,6 +3232,116 @@ const MACRO_NEXT_UP=[
   {term:"LM curve",def:"What curve shows combinations of real GDP and the interest rate where the money market is in equilibrium?",note:"An increase in the money supply shifts LM right; a decrease shifts it left."}
 ];
 
+// Marketing combines terms repeatedly evidenced in SAEA with missing siblings predicted from
+// the Kotler-Armstrong Principles of Marketing / Marketing: An Introduction test-bank family.
+const MARKETING_CORE_PREDICTED=[
+  // 50 concepts directly evidenced by recurring SAEA Marketing questions.
+  {term:"Marketing",def:"What process creates value for customers and builds relationships to capture value in return?",note:"SAEA-evidenced core; Kotler-Armstrong wording family."},
+  {term:"Marketing mix",def:"What blend of controllable product, price, place, and promotion decisions serves a target market?",note:"SAEA-evidenced core; the four Ps."},
+  {term:"Product",def:"What market offering can satisfy a want or need through acquisition, use, or consumption?",note:"SAEA-evidenced core."},
+  {term:"Market segmentation",def:"What process divides a market into groups with different needs, traits, or behaviors?",note:"SAEA-evidenced core."},
+  {term:"Target marketing",def:"What process evaluates market segments and selects which segment or segments to serve?",note:"SAEA-evidenced core."},
+  {term:"Positioning",def:"What process creates a distinct place for a product relative to competitors in customers' minds?",note:"SAEA-evidenced core."},
+  {term:"Geographic segmentation",def:"What segmentation divides buyers by nations, regions, states, cities, or neighborhoods?",note:"SAEA-evidenced segmentation family."},
+  {term:"Demographic segmentation",def:"What segmentation divides buyers by age, income, occupation, education, gender, or family size?",note:"SAEA-evidenced segmentation family."},
+  {term:"Psychographic segmentation",def:"What segmentation divides buyers by lifestyle, social class, or personality?",note:"SAEA-evidenced segmentation family."},
+  {term:"Mass marketing",def:"What strategy offers one product and one marketing mix to the entire market?",note:"SAEA-evidenced; also called undifferentiated marketing."},
+  {term:"Niche market",def:"What term describes a small, narrowly defined customer group with distinctive needs?",note:"SAEA-evidenced targeting term."},
+  {term:"Product line",def:"What group consists of closely related products offered by a company?",note:"SAEA-evidenced product family."},
+  {term:"Product mix",def:"What term covers all product lines and individual items a seller offers?",note:"SAEA-evidenced product family."},
+  {term:"Product-mix width",def:"What product-mix dimension counts the different product lines a company carries?",note:"SAEA-evidenced product-mix family."},
+  {term:"Product-mix length",def:"What product-mix dimension counts all individual items across a company's product lines?",note:"SAEA-evidenced product-mix family."},
+  {term:"Product-line depth",def:"What dimension counts the versions, sizes, flavors, or models offered within one product line?",note:"SAEA-evidenced product-mix family."},
+  {term:"Brand",def:"What name, term, sign, symbol, design, or combination identifies a seller's offering?",note:"SAEA-evidenced branding family."},
+  {term:"Brand equity",def:"What term means the added value a brand name gives a product?",note:"SAEA-evidenced; explains willingness to pay more for a known brand."},
+  {term:"Brand loyalty",def:"What term describes a customer's emotional attachment and repeated preference for a brand?",note:"SAEA-evidenced branding family."},
+  {term:"Family branding",def:"What strategy uses one brand name for several related products?",note:"SAEA-evidenced; also called umbrella branding."},
+  {term:"Co-branding",def:"What strategy combines two established brand names on one product or offering?",note:"SAEA-evidenced branding family."},
+  {term:"Line extension",def:"What strategy uses an existing brand for a new flavor, size, form, or item in the same category?",note:"SAEA-evidenced branding family."},
+  {term:"Brand extension",def:"What strategy uses an existing brand name to enter a different product category?",note:"SAEA-evidenced branding family."},
+  {term:"Product life cycle",def:"What model traces a product through introduction, growth, maturity, and decline?",note:"SAEA repeatedly tests every stage."},
+  {term:"Introduction stage",def:"What life-cycle stage has low sales, high promotion costs, and usually negative or low profit?",note:"SAEA-evidenced; promotion builds awareness and primary demand."},
+  {term:"Growth stage",def:"What life-cycle stage has rapidly rising sales, new competitors, and emphasis on market share?",note:"SAEA-evidenced; persuasive promotion becomes more important."},
+  {term:"Maturity stage",def:"What life-cycle stage has slowing sales growth, intense competition, and reminder promotion?",note:"SAEA-evidenced; profits often decline late in this stage."},
+  {term:"Decline stage",def:"What life-cycle stage has falling sales and may call for maintaining, harvesting, or dropping a product?",note:"SAEA-evidenced product-life-cycle family."},
+  {term:"Star",def:"What BCG category has high relative market share in a high-growth market?",note:"SAEA-evidenced BCG family; often becomes a cash cow."},
+  {term:"Cash cow",def:"What BCG category has high relative market share in a low-growth market?",note:"SAEA-evidenced BCG family; generates cash for other units."},
+  {term:"Question mark",def:"What BCG category has low relative market share in a high-growth market?",note:"SAEA-evidenced BCG family; also called a problem child."},
+  {term:"Dog",def:"What BCG category has low relative market share in a low-growth market?",note:"SAEA-evidenced BCG family."},
+  {term:"Market penetration",def:"What Ansoff strategy seeks more sales from current products in current markets?",note:"SAEA-evidenced Ansoff family."},
+  {term:"Market development",def:"What Ansoff strategy sells existing products to new markets?",note:"Correct sibling; the trainer's 2026 recorded answer is wrong."},
+  {term:"Product development",def:"What Ansoff strategy offers new products to existing markets?",note:"SAEA-evidenced/predicted Ansoff sibling."},
+  {term:"Diversification",def:"What Ansoff strategy enters new markets with new products?",note:"SAEA-evidenced/predicted Ansoff sibling; highest-risk option."},
+  {term:"Shopping product",def:"What consumer product is compared on suitability, quality, price, and style before purchase?",note:"SAEA-evidenced product-classification family."},
+  {term:"Specialty product",def:"What consumer product has unique traits that motivate buyers to make a special purchase effort?",note:"SAEA-evidenced product-classification family."},
+  {term:"Unsought product",def:"What product is unknown to consumers or not normally considered until a need arises?",note:"SAEA-evidenced; life insurance is a standard example."},
+  {term:"Service",def:"What intangible activity or benefit is offered for sale without resulting in ownership?",note:"SAEA-evidenced services family."},
+  {term:"Advertising",def:"What paid, nonpersonal presentation by an identified sponsor promotes ideas, goods, or services?",note:"SAEA-evidenced promotional-mix family."},
+  {term:"Personal selling",def:"What paid personal communication between seller and buyer can directly close a sale?",note:"SAEA-evidenced; often the most expensive promotional tool per contact."},
+  {term:"Sales promotion",def:"What short-term incentive encourages immediate purchase or sale of a product?",note:"SAEA-evidenced; includes coupons, contests, displays, and demonstrations."},
+  {term:"Public relations",def:"What promotional tool builds favorable relationships and manages an organization's public image?",note:"SAEA-evidenced; includes events, press relations, and lobbying."},
+  {term:"Publicity",def:"What unpaid, nonpersonal media message concerns a product, organization, person, or event?",note:"SAEA-evidenced; publicity is one public-relations tool."},
+  {term:"Direct marketing",def:"What promotion connects directly with selected consumers to obtain an immediate response?",note:"SAEA-evidenced; telemarketing is one form."},
+  {term:"Push strategy",def:"What promotion strategy directs marketing efforts toward channel intermediaries?",note:"SAEA-evidenced; the producer pushes the product through the channel."},
+  {term:"Pull strategy",def:"What promotion strategy targets final consumers so they demand the product from intermediaries?",note:"SAEA-evidenced; consumer demand pulls the product through the channel."},
+  {term:"Intensive distribution",def:"What distribution strategy places a product in as many outlets as possible?",note:"SAEA-evidenced channel-intensity family."},
+  {term:"Selective distribution",def:"What strategy uses more than one but fewer than all willing intermediaries?",note:"SAEA-evidenced channel-intensity family."},
+
+  // 35 high-probability missing siblings from adjacent Kotler-Armstrong test-bank families.
+  {term:"Exclusive distribution",def:"What strategy gives only one or a very small number of dealers the right to sell in an area?",note:"Predicted sibling of intensive and selective distribution."},
+  {term:"Behavioral segmentation",def:"What segmentation divides buyers by knowledge, attitudes, usage, occasions, or response?",note:"Predicted sibling of SAEA's geographic, demographic, and psychographic questions."},
+  {term:"Differentiated marketing",def:"What targeting strategy designs separate offers for several market segments?",note:"Predicted sibling of mass and niche marketing."},
+  {term:"Concentrated marketing",def:"What targeting strategy pursues a large share of one or a few small segments?",note:"Predicted sibling; also called niche marketing."},
+  {term:"Micromarketing",def:"What strategy tailors products and programs to local areas or individual customers?",note:"Predicted targeting sibling; includes local and individual marketing."},
+  {term:"Price skimming",def:"What strategy launches at a high price and lowers it over time as additional buyers or competitors enter?",note:"SAEA-evidenced pricing family."},
+  {term:"Penetration pricing",def:"What strategy launches at a low price to attract buyers quickly and gain market share?",note:"SAEA-evidenced pricing family."},
+  {term:"Convenience product",def:"What product is purchased frequently, immediately, and with minimal comparison effort?",note:"Predicted sibling of SAEA's shopping, specialty, and unsought products."},
+  {term:"Product-mix consistency",def:"What dimension measures how closely a company's product lines relate in use, production, or distribution?",note:"Predicted sibling of width, length, and depth."},
+  {term:"Cost-plus pricing",def:"What method sets price by adding a standard markup to the cost of producing the product?",note:"SAEA-evidenced pricing family."},
+  {term:"Prestige or premium pricing",def:"What strategy sets a deliberately high price to signal quality, status, or exclusivity?",note:"SAEA-evidenced pricing family."},
+  {term:"Private brand",def:"What brand is created and owned by a reseller rather than a manufacturer?",note:"Predicted branding sibling; also called a store brand."},
+  {term:"Promotional pricing",def:"What strategy temporarily prices below list price or cost to create excitement and urgency?",note:"SAEA-evidenced pricing family."},
+  {term:"Predatory pricing",def:"What illegal strategy prices below cost to drive out rivals and later exercise market power?",note:"SAEA-evidenced pricing family."},
+  {term:"Bundle pricing",def:"What strategy combines several products and sells them together for one reduced package price?",note:"SAEA-evidenced pricing family."},
+  {term:"Everyday low pricing",def:"What strategy charges a consistently low price with few temporary discounts?",note:"SAEA-evidenced pricing family; strongly associated with Walmart."},
+  {term:"Service intangibility",def:"What service trait means a service cannot be seen, tasted, felt, heard, or smelled before purchase?",note:"Predicted service-traits family; SAEA already tests intangibility generally."},
+  {term:"Service inseparability",def:"What service trait means production and consumption occur together and involve the provider?",note:"Predicted sibling of intangibility."},
+  {term:"Service variability",def:"What service trait means quality can differ by provider, time, place, or method?",note:"Predicted sibling of intangibility."},
+  {term:"Service perishability",def:"What service trait means unused service capacity cannot be stored for later sale?",note:"Predicted sibling of intangibility."},
+  {term:"Early majority",def:"What adopter group adopts before the average person but rarely leads opinion?",note:"Predicted sibling of innovators and early adopters."},
+  {term:"Late majority",def:"What skeptical adopter group adopts only after most people have tried an innovation?",note:"Predicted sibling in Rogers' diffusion categories."},
+  {term:"Laggards",def:"What tradition-bound adopter group is last to accept an innovation?",note:"Predicted sibling in Rogers' diffusion categories."},
+  {term:"Relative advantage, compatibility, complexity, trialability, and observability",def:"What five product characteristics most strongly influence an innovation's rate of adoption?",note:"Predicted Kotler-Armstrong diffusion family."},
+  {term:"Innovators",def:"What first adopter category is venturesome and willing to try new ideas at substantial risk?",note:"SAEA-evidenced Rogers adopter category."},
+  {term:"Early adopters",def:"What adopter category has the greatest opinion leadership and adopts before the average person?",note:"SAEA-evidenced Rogers adopter category."},
+  {term:"Exporting, licensing, joint venturing, and direct investment",def:"What are the four major ways firms enter foreign markets, from lower to generally higher commitment?",note:"Predicted sibling of SAEA's exporting question."},
+  {term:"Focus group",def:"What qualitative research uses a small moderated discussion to explore consumers' attitudes and reactions?",note:"SAEA-evidenced marketing-research term."},
+  {term:"Persuasive advertising",def:"What advertising builds selective demand by convincing buyers one brand is best?",note:"Predicted sibling of informative and reminder advertising; common in growth."},
+  {term:"Value-based pricing",def:"What pricing begins with customers' perceptions of value rather than the seller's cost?",note:"Predicted sibling of SAEA's cost-plus and psychological pricing questions."},
+  {term:"Competition-based pricing",def:"What pricing uses competitors' strategies, costs, prices, and offers as the reference?",note:"Predicted major pricing-method sibling."},
+  {term:"Zone pricing",def:"What geographic strategy charges one total price within a zone and higher prices in more distant zones?",note:"SAEA-evidenced pricing family."},
+  {term:"Dumping",def:"What practice sells abroad below cost or below the price charged in the seller's home market?",note:"SAEA-evidenced international pricing term."},
+  {term:"Vertical marketing system",def:"What channel system coordinates producers, wholesalers, and retailers as one unified network?",note:"Predicted sibling of channel conflict and channel leadership."},
+  {term:"Cognitive dissonance",def:"What postpurchase discomfort arises from doubts about whether the buyer made the right choice?",note:"Predicted consumer-decision-process question."},
+
+  // 15 distinctive or unusually specific terms that appear in the mixed SAEA source pool.
+  {term:"Slotting fee",def:"What fee does a retailer charge a producer to accept, list, and stock a new product?",note:"SAEA odd-source term; directly tested in 2026."},
+  {term:"Harvest strategy",def:"What strategy cuts spending on a declining product to maximize short-run cash flow?",note:"SAEA odd-source term; directly tested in several forms."},
+  {term:"Odd-even pricing",def:"What psychological pricing sets a price just below a round number, such as $19.99?",note:"SAEA odd-source pricing term."},
+  {term:"Institutional advertising",def:"What advertising promotes an organization's image rather than a specific product?",note:"SAEA odd-source promotional term; also called corporate advertising."},
+  {term:"Social marketing",def:"What marketing applies commercial techniques to influence behavior for the common good?",note:"SAEA odd-source term; not the same as social-media marketing."},
+  {term:"Guerrilla marketing",def:"What low-cost, unconventional promotion aims to create surprise and strong attention?",note:"SAEA odd-source promotional term."},
+  {term:"Demarketing",def:"What marketing deliberately reduces demand temporarily or permanently?",note:"SAEA odd-source term; often used when demand exceeds capacity or harms society."},
+  {term:"Wheel of retailing",def:"What theory says low-price retailers move upscale and are displaced by new low-price entrants?",note:"SAEA exact Kotler-Armstrong test-bank fingerprint."},
+  {term:"Channel captain",def:"What channel member informally leads, coordinates, and helps resolve channel conflict?",note:"SAEA odd-source distribution term."},
+  {term:"Data mining",def:"What process uses software to analyze large datasets for patterns and predicted customer behavior?",note:"SAEA odd-source analytics term."},
+  {term:"Environmental scanning",def:"What process continually monitors external forces and trends that may affect an organization?",note:"SAEA odd-source planning term."},
+  {term:"Evoked set",def:"What small group of brands does a consumer actively consider during a purchase decision?",note:"SAEA odd-source consumer-behavior term."},
+  {term:"Reference price",def:"What internal or external comparison price does a buyer use when evaluating an offering?",note:"SAEA odd-source pricing term."},
+  {term:"Captive-product pricing",def:"What pricing sets prices for products required to use a main product, such as razor blades?",note:"SAEA odd-source pricing term."},
+  {term:"Packaging",def:"What product activity designs and produces the container or wrapper—the 'silent salesman'?",note:"SAEA repeatedly tests packaging's communication role."}
+];
+
 // ═══ FACT CARDS DATA ═══
 const FACT_DECKS=[
 {
@@ -3261,6 +3371,13 @@ const FACT_DECKS=[
   emoji:"🧭",
   color:"#0e7490",
   cards:MACRO_NEXT_UP
+},
+{
+  id:"marketing_core_predicted",
+  label:"Marketing: Core & Predicted Questions",
+  emoji:"📣",
+  color:"#db2777",
+  cards:MARKETING_CORE_PREDICTED
 },
 {
   id:"quantitative_next_up",
@@ -3498,7 +3615,7 @@ if(!deck){
 
 const cards=deck.cards;
 const card=cards[ix];
-const isNextUp=deck.id==="management_next_up"||deck.id==="micro_next_up"||deck.id==="macro_next_up"||deck.id==="quantitative_next_up";
+const isNextUp=deck.id==="management_next_up"||deck.id==="micro_next_up"||deck.id==="macro_next_up"||deck.id==="marketing_core_predicted"||deck.id==="quantitative_next_up";
 const rev=mode==="def";
 const frontText=isNextUp?(rev?card.term:card.def):(rev?card.def:card.term);
 const backText=isNextUp?(rev?card.def:card.term):(rev?card.term:card.def);
