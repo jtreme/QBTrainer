@@ -2859,8 +2859,192 @@ const recommendTopic=(player,hist,allQs)=>{
 };
 
 
+// ═══ MANAGEMENT FLASHCARD DECKS ═══
+// Core deck is generated from actual 2024-2026 SAEA Management questions already in this trainer.
+// Repeated answers are deduplicated. Front = one real SAEA-style question; back = the short answer only.
+const resolvedAnswer=q=>{
+  if(!q)return "";
+  if(q.type==="mc"&&Array.isArray(q.options)&&/^[A-E]$/.test(String(q.a||""))){
+    const i="ABCDE".indexOf(String(q.a));
+    return q.options[i]||String(q.a||"");
+  }
+  return String(q.a||"").trim();
+};
+const corePrompt=q=>{
+  if(!q)return "";
+  let prompt=String(q.q||"").trim();
+  if(q.type==="mc"&&Array.isArray(q.options)&&q.options.length){
+    prompt += "\n" + q.options.map((o,i)=>String.fromCharCode(65+i)+". "+o).join("   " );
+  }
+  return prompt;
+};
+const SAEA_CORE_CARDS=(()=>{
+  const seen=new Set(),out=[];
+  [...TRAIN,...ASSESS]
+    .filter(q=>q&&q.cat==="Management"&&["24 SAEA","25 SAEA","26 SAEA"].includes(q.src))
+    .forEach(q=>{
+      const answer=resolvedAnswer(q);
+      const key=answer.toLowerCase().replace(/[^a-z0-9]+/g," ").trim();
+      if(!answer||seen.has(key))return;
+      seen.add(key);
+      out.push({term:corePrompt(q),def:answer});
+    });
+  return out;
+})();
+
+// New concepts selected because they are direct siblings/near-neighbors of frameworks SAEA already tests.
+// Definitions are concise study paraphrases from the OpenStax / Robbins / Koontz source families reviewed for this trainer.
+const MANAGEMENT_NEXT_UP=[
+  {term:"Expert power",def:"Power based on specialized knowledge, skill, or expertise.",note:"Related SAEA family: legitimate, coercive, and referent power."},
+  {term:"Reward power",def:"Power based on the ability to provide valued rewards such as pay, recognition, desirable assignments, or advancement.",note:"Related SAEA family: bases of power."},
+  {term:"Nonprogrammed decision",def:"A decision for a novel, unusual, or nonroutine problem where no established rule or procedure provides the answer.",note:"Direct sibling: programmed decisions."},
+  {term:"Bounded rationality",def:"Decision makers are limited by time, information, and cognitive capacity, so they cannot evaluate every possible alternative.",note:"Closely related SAEA concept: satisficing."},
+  {term:"Confirmation bias",def:"The tendency to seek, interpret, and remember information that supports an existing belief while discounting contradictory evidence.",note:"Related SAEA family: decision biases."},
+  {term:"Devil's advocate",def:"A person deliberately assigned to challenge assumptions and proposed decisions so a group considers weaknesses and alternatives.",note:"Related SAEA concept: groupthink."},
+  {term:"Brainstorming",def:"A group idea-generation method that encourages many ideas while postponing criticism or evaluation until later."},
+  {term:"Nominal group technique",def:"A structured group decision method in which members first generate ideas independently, then share, discuss, and rank them."},
+  {term:"Tactical plan",def:"A medium-range plan that translates broad strategic plans into specific actions for a division or major unit."},
+  {term:"Operational plan",def:"A short-range, detailed plan specifying how day-to-day activities will accomplish tactical and strategic objectives."},
+  {term:"Technical skills",def:"A manager's ability to use job-specific knowledge, methods, techniques, and tools.",note:"Direct sibling: conceptual skills."},
+  {term:"Human relations skills",def:"A manager's ability to work effectively with, communicate with, and understand other people.",note:"Direct siblings: technical and conceptual skills."},
+  {term:"Decisional roles",def:"Mintzberg manager roles involving choices and resource decisions: entrepreneur, disturbance handler, resource allocator, and negotiator.",note:"Related SAEA family: interpersonal manager roles."},
+  {term:"Informational roles",def:"Mintzberg manager roles involving information: monitor, disseminator, and spokesperson.",note:"Related SAEA family: interpersonal manager roles."},
+  {term:"Chain of command",def:"The continuous line of authority linking all organizational levels and clarifying who reports to whom."},
+  {term:"Scalar chain",def:"Fayol's principle describing the formal line of authority from the highest organizational level to the lowest."},
+  {term:"Unity of direction",def:"Fayol's principle that activities with the same objective should be directed by one manager using one plan.",note:"Direct sibling: unity of command."},
+  {term:"Esprit de corps",def:"Fayol's principle emphasizing harmony, team spirit, and unity among employees."},
+  {term:"Delegation",def:"Assigning responsibility and authority to another person to carry out specific activities while the manager remains accountable for results."},
+  {term:"Decentralization",def:"The degree to which decision-making authority is pushed downward to lower organizational levels.",note:"Direct opposite: centralization."},
+  {term:"Functional departmentalization",def:"Grouping jobs according to functions performed, such as marketing, finance, production, or human resources."},
+  {term:"Product departmentalization",def:"Grouping jobs around particular product lines or product categories."},
+  {term:"Customer departmentalization",def:"Grouping jobs according to the needs of different customer groups or market segments."},
+  {term:"Geographic departmentalization",def:"Grouping jobs and activities according to territory, region, or geographic location."},
+  {term:"Matrix structure",def:"An organizational design in which employees commonly report to both a functional manager and a product/project manager, intentionally weakening unity of command."},
+  {term:"Mechanistic organization",def:"A rigid, tightly controlled structure characterized by high specialization, formalization, centralization, and relatively narrow spans of control."},
+  {term:"Organic organization",def:"A flexible, adaptive structure characterized by lower formalization, decentralized decisions, freer information flow, and broader collaboration."},
+  {term:"Formalization",def:"The degree to which jobs and employee behavior are governed by standardized rules and procedures."},
+  {term:"Line authority",def:"Authority that gives a manager the right to direct the work of employees who contribute directly to organizational objectives."},
+  {term:"Staff authority",def:"Authority held by specialists who advise or support line managers rather than directly command core operating employees."},
+  {term:"Goal-setting theory",def:"Motivation theory holding that specific, challenging goals combined with appropriate feedback can improve performance."},
+  {term:"Reinforcement theory",def:"Motivation approach emphasizing that behavior is shaped by its consequences; rewarded behavior is more likely to be repeated."},
+  {term:"Theory Z",def:"William Ouchi's management approach emphasizing long-term employment, collective decision making, trust, and concern for employees, blending Japanese and U.S. practices."},
+  {term:"Hawthorne effect",def:"The tendency for people's behavior or performance to change when they know they are receiving attention or being observed."},
+  {term:"Hygiene factors",def:"In Herzberg's two-factor theory, contextual factors such as pay, policies, supervision, and working conditions that can prevent dissatisfaction but do not create lasting motivation."},
+  {term:"Motivators",def:"In Herzberg's theory, factors intrinsic to the work—such as achievement, recognition, responsibility, advancement, and growth—that can create satisfaction and motivation."},
+  {term:"Expectancy",def:"In Vroom's expectancy theory, the belief that greater effort will lead to the required level of performance."},
+  {term:"Instrumentality",def:"In Vroom's expectancy theory, the belief that successful performance will lead to a particular outcome or reward."},
+  {term:"Valence",def:"In Vroom's expectancy theory, the value or attractiveness a person places on a particular outcome or reward."},
+  {term:"Social loafing",def:"The tendency for individuals to exert less effort when working collectively than when working alone."},
+  {term:"Group cohesiveness",def:"The degree to which group members are attracted to one another and motivated to remain part of the group."},
+  {term:"Self-managed work team",def:"A group given substantial responsibility and authority to manage and perform an identifiable piece of work with limited direct supervision."},
+  {term:"Transformational leadership",def:"Leadership that inspires followers to transcend self-interest, embrace a compelling vision, and achieve significant change or higher performance."},
+  {term:"Transactional leadership",def:"Leadership based primarily on exchanges between leader and follower, such as performance in return for rewards or corrective action."},
+  {term:"Situational leadership",def:"Leadership perspective holding that effective leadership style should vary with the situation and follower readiness or needs."},
+  {term:"Critical path",def:"The longest sequence of dependent project activities; a delay in any critical-path activity delays completion of the entire project.",note:"Related SAEA concept: Gantt chart."},
+  {term:"Critical Path Method (CPM)",def:"A project scheduling technique that maps activity relationships and identifies the critical path so managers know which tasks cannot be delayed."},
+  {term:"PERT",def:"Program Evaluation and Review Technique: a network-based project scheduling method that traditionally uses optimistic, most-likely, and pessimistic time estimates."},
+  {term:"Six Sigma",def:"A quality-management approach using data and process improvement to reduce defects and variation to extremely low levels."},
+  {term:"ISO 9000",def:"A family of international standards for quality-management systems that documents and standardizes processes used to consistently meet customer and regulatory requirements."},
+  {term:"Lean management",def:"An approach focused on maximizing customer value while eliminating waste, unnecessary steps, excess inventory, delays, and defects."},
+  {term:"Pareto analysis",def:"A quality/problem-solving technique based on the idea that a relatively small number of causes often account for a large share of problems—the 80/20 principle."},
+  {term:"Cause-and-effect diagram",def:"A quality tool, also called a fishbone or Ishikawa diagram, used to organize and identify possible root causes of a problem."},
+  {term:"Control chart",def:"A statistical quality-control chart that plots process results over time against control limits to detect unusual variation."},
+  {term:"Core competency",def:"A distinctive organizational capability or strength that provides customer value and is difficult for competitors to imitate."},
+  {term:"Mission statement",def:"A statement describing an organization's fundamental purpose—why it exists and what it seeks to accomplish."},
+  {term:"Vision statement",def:"A statement describing an organization's desired future state or what it aspires to become."},
+  {term:"Corporate culture",def:"The shared values, beliefs, assumptions, and norms that influence how members of an organization behave."},
+  {term:"Emotional intelligence",def:"The ability to recognize, understand, and manage one's own emotions and to recognize and respond effectively to the emotions of others."}
+];
+
+
+const QUANT_NEXT_UP=[
+  {term:"Heteroskedasticity",def:"What regression problem occurs when the variance of the error term is not constant across observations?",note:"Related diagnostic: White/Breusch-Pagan tests; remedy: robust standard errors."},
+  {term:"Heteroskedasticity-robust (White) standard errors",def:"What type of standard errors are adjusted so inference remains valid when regression errors are heteroskedastic?",note:"Related issue: heteroskedasticity."},
+  {term:"White test",def:"What general regression test checks for heteroskedasticity without requiring a specific form for the changing error variance?",note:"Sibling: Breusch-Pagan test."},
+  {term:"Breusch-Pagan test",def:"What test detects heteroskedasticity by checking whether squared residuals are related to the explanatory variables?",note:"Sibling: White test."},
+  {term:"Autocorrelation (serial correlation)",def:"What regression problem occurs when error terms are correlated across observations, especially over time?",note:"Related diagnostic: Durbin-Watson statistic."},
+  {term:"Durbin-Watson statistic",def:"What statistic is commonly used to detect first-order autocorrelation in regression residuals?",note:"Related issue: autocorrelation/serial correlation."},
+  {term:"Multicollinearity",def:"What regression problem occurs when two or more independent variables are highly correlated, making coefficient estimates unstable or imprecise?",note:"Already appears in SAEA; related diagnostic: VIF."},
+  {term:"Variance Inflation Factor (VIF)",def:"What diagnostic measures how much the variance of a regression coefficient is inflated because of multicollinearity?",note:"Related issue: multicollinearity."},
+  {term:"Tolerance",def:"What multicollinearity diagnostic equals 1 divided by VIF, with very low values indicating a problem?",note:"Sibling: VIF."},
+  {term:"Omitted-variable bias",def:"What bias can occur when a relevant explanatory variable is left out of a regression and is correlated with an included regressor?",note:"Related concept: endogeneity."},
+  {term:"Exogenous variable",def:"What do economists call an explanatory variable that is uncorrelated with the regression error term?",note:"Opposite: endogenous variable."},
+  {term:"Endogenous variable",def:"What do economists call an explanatory variable that is correlated with the regression error term?",note:"Opposite: exogenous variable."},
+  {term:"Instrumental variable (IV)",def:"What type of variable is used to address endogeneity by providing exogenous variation related to an endogenous regressor?",note:"Related issue: endogeneity."},
+  {term:"Residual",def:"What is the difference between an observed value of the dependent variable and its fitted or predicted value?",note:"Do not confuse with the unobserved population error term."},
+  {term:"Error term (disturbance)",def:"What term represents unobserved factors that affect the dependent variable in the population regression model?",note:"Sibling: residual, which is the sample estimate of the error."},
+  {term:"Influential observation",def:"What do we call an observation whose inclusion or removal has a substantial effect on estimated regression coefficients?",note:"Related diagnostics: Cook's distance and leverage."},
+  {term:"Cook's distance",def:"What regression diagnostic summarizes how influential an observation is on the fitted coefficients?",note:"Related concepts: outlier and leverage."},
+  {term:"Leverage",def:"What regression diagnostic describes how unusual an observation's explanatory-variable values are relative to the rest of the sample?",note:"High leverage can make an observation influential."},
+  {term:"Ordinary Least Squares (OLS)",def:"What regression estimation method chooses coefficients to minimize the sum of squared residuals?",note:"Already appears in SAEA; sibling: SSE."},
+  {term:"SSE / Residual Sum of Squares",def:"What quantity equals the sum of the squared regression residuals and represents unexplained variation?",note:"Relationship: SST = SSR + SSE."},
+  {term:"Regression Sum of Squares (SSR)",def:"What sum of squares measures the variation in the dependent variable explained by the regression model?",note:"Relationship: SST = SSR + SSE."},
+  {term:"Total Sum of Squares (SST)",def:"What sum of squares measures the total variation of the dependent variable around its sample mean?",note:"Relationship: SST = SSR + SSE."},
+  {term:"Mean Squared Error (MSE)",def:"What regression quantity is obtained by dividing SSE by the residual degrees of freedom?",note:"Square root gives the regression standard error / RMSE."},
+  {term:"Root Mean Squared Error (RMSE)",def:"What measure is the square root of mean squared error and expresses typical prediction error in the units of the dependent variable?",note:"Sibling: MSE."},
+  {term:"Multiple R",def:"In Excel regression output, what statistic reports the correlation between observed and fitted values of the dependent variable?",note:"Do not confuse with R Square."},
+  {term:"R Square",def:"In Excel regression output, what statistic gives the proportion of variation in the dependent variable explained by the regression?",note:"Related: Adjusted R Square."},
+  {term:"Adjusted R Square",def:"In Excel regression output, what goodness-of-fit measure adjusts R Square for the number of predictors in the model?",note:"Already appears in SAEA."},
+  {term:"Regression Standard Error",def:"In Excel's Regression Statistics table, what measure gives the typical size of the regression residuals in the units of the dependent variable?",note:"Related: RMSE / standard error of estimate."},
+  {term:"Observations",def:"In Excel regression output, what entry reports the number of sample observations used in the regression?",note:"This is the sample size n."},
+  {term:"Degrees of freedom (df)",def:"In an ANOVA table, what quantity represents the number of independent pieces of information available for estimating variation?",note:"Already appears in SAEA."},
+  {term:"Mean Square (MS)",def:"In an ANOVA table, what quantity is calculated as Sum of Squares divided by its degrees of freedom?",note:"Used to construct the F statistic."},
+  {term:"F statistic",def:"In regression ANOVA output, what statistic tests whether the model as a whole has explanatory power?",note:"Its p-value appears in Excel as Significance F."},
+  {term:"Significance F",def:"In Excel regression output, what entry is the p-value for the overall F-test of the regression model?",note:"Sibling: F statistic."},
+  {term:"Coefficient",def:"In a regression output table, what estimate gives the predicted change in the dependent variable from a one-unit increase in an explanatory variable, holding other regressors constant?",note:"Related: standard error and t Stat."},
+  {term:"Intercept",def:"In a regression equation, what coefficient gives the predicted value of Y when all explanatory variables equal zero?",note:"Also called the constant term."},
+  {term:"Coefficient standard error",def:"In regression output, what quantity measures the estimated sampling uncertainty of an individual coefficient estimate?",note:"Used to calculate the t statistic."},
+  {term:"t statistic",def:"In regression output, what statistic is calculated by dividing a coefficient estimate by its standard error when testing whether the coefficient equals zero?",note:"Already appears in SAEA."},
+  {term:"p-value",def:"What probability measure indicates how unusual the observed test statistic would be if the null hypothesis were true?",note:"Already appears in SAEA."},
+  {term:"95% confidence interval",def:"In Excel regression output, what range is shown by the Lower 95% and Upper 95% columns for each coefficient?",note:"If the interval includes zero, the coefficient is not significant at the 5% level."},
+  {term:"Logit model",def:"What binary-response regression model uses the logistic cumulative distribution function to model a 0/1 dependent variable?",note:"Sibling: probit model."},
+  {term:"Probit model",def:"What binary-response regression model uses the standard normal cumulative distribution function to model a 0/1 dependent variable?",note:"Sibling: logit model."},
+  {term:"Linear probability model",def:"What model applies OLS directly to a binary dependent variable, even though predicted probabilities can fall outside 0 and 1?",note:"Sibling: logit and probit."},
+  {term:"Maximum likelihood estimation (MLE)",def:"What estimation method chooses parameter values that make the observed sample most likely and is commonly used for logit and probit models?",note:"Related models: logit and probit."},
+  {term:"Odds ratio",def:"In a logit model, what quantity compares how the odds of an outcome change as a predictor changes?",note:"Common interpretation tool for logistic regression."},
+  {term:"Marginal effect",def:"In nonlinear probability models such as logit or probit, what quantity measures the change in predicted probability from a change in an explanatory variable?",note:"Related: logit/probit interpretation."},
+  {term:"Normal distribution",def:"What continuous probability distribution is symmetric and bell-shaped and is determined by its mean and standard deviation?",note:"Sibling: standard normal distribution."},
+  {term:"Standard normal distribution",def:"What normal distribution has a mean of 0 and a standard deviation of 1?",note:"Values are commonly expressed as z-scores."},
+  {term:"t distribution",def:"What bell-shaped distribution with heavier tails than the normal is commonly used for inference when a population variance is unknown?",note:"Related: t statistics and confidence intervals."},
+  {term:"F distribution",def:"What right-skewed continuous distribution is used for ANOVA and the overall significance test in regression?",note:"Related: F statistic and Significance F."},
+  {term:"Chi-square distribution",def:"What right-skewed distribution is commonly used for tests involving categorical frequencies and for inference about variances?",note:"Sibling family: t and F distributions."},
+  {term:"Binomial distribution",def:"What discrete distribution gives the number of successes in a fixed number of independent trials with a constant probability of success?",note:"Related: Bernoulli trials."},
+  {term:"Poisson distribution",def:"What discrete distribution models the number of independent events occurring in a fixed interval when events occur at a constant average rate?",note:"Useful for count data."},
+  {term:"Exponential distribution",def:"What continuous probability distribution is commonly used to model waiting time between independent events occurring at a constant average rate?",note:"Sibling: Poisson distribution."},
+  {term:"Box plot",def:"What graph displays a distribution using the median, quartiles, spread, and often potential outliers?",note:"Also called a box-and-whisker plot."},
+  {term:"Interquartile range (IQR)",def:"What measure of spread equals the third quartile minus the first quartile and covers the middle 50% of observations?",note:"Related display: box plot."},
+  {term:"Histogram",def:"What graph displays the frequency distribution of a quantitative variable by grouping observations into numerical intervals or bins?",note:"Do not confuse with a bar chart."},
+  {term:"Bar chart",def:"What graph uses separate bars to compare values or frequencies across discrete categories?",note:"Do not confuse with a histogram."},
+  {term:"Pie chart",def:"What circular graph displays categories as slices representing proportions of a whole?",note:"Best for part-to-whole composition."},
+  {term:"Scatterplot",def:"What graph plots paired values of two quantitative variables to show the form, direction, and strength of their relationship?",note:"Related: correlation and regression."},
+  {term:"Line chart / time-series plot",def:"What graph connects observations in time order to show how a variable changes over time?",note:"Related SAEA topic: seasonality."},
+  {term:"Positive (right) skew",def:"What distribution shape has a long right tail and typically has a mean greater than the median?",note:"Opposite: negative/left skew."},
+  {term:"Negative (left) skew",def:"What distribution shape has a long left tail and typically has a mean less than the median?",note:"Opposite: positive/right skew."}
+];
+
 // ═══ FACT CARDS DATA ═══
 const FACT_DECKS=[
+{
+  id:"management_saea_core",
+  label:"Management: SAEA Core Recall",
+  emoji:"🏆",
+  color:"#cc0000",
+  cards:SAEA_CORE_CARDS
+},
+{
+  id:"management_next_up",
+  label:"Management: Next-Up Concepts",
+  emoji:"🔮",
+  color:"#2563eb",
+  cards:MANAGEMENT_NEXT_UP
+},
+{
+  id:"quantitative_next_up",
+  label:"Quantitative: Next-Up Concepts",
+  emoji:"📐",
+  color:"#0f766e",
+  cards:QUANT_NEXT_UP
+},
 {
   id:"economists",
   label:"Famous Economists",
@@ -3090,7 +3274,13 @@ if(!deck){
 
 const cards=deck.cards;
 const card=cards[ix];
+const isNextUp=deck.id==="management_next_up"||deck.id==="quantitative_next_up";
 const rev=mode==="def";
+const frontText=isNextUp?(rev?card.term:card.def):(rev?card.def:card.term);
+const backText=isNextUp?(rev?card.def:card.term):(rev?card.term:card.def);
+const frontLabel=isNextUp?(rev?"ANSWER":"QUESTION"):(rev?"ANSWER":"QUESTION");
+const backLabel=isNextUp?(rev?"QUESTION":"ANSWER"):(rev?"QUESTION":"ANSWER");
+const answerVisible=isNextUp?((!flipped&&rev)||(flipped&&!rev)):false;
 const cardKey=deck.id+"_"+card.term;
 const isKnown=known[cardKey];
 const progress=cards.filter(c=>known[deck.id+"_"+c.term]).length;
@@ -3125,12 +3315,14 @@ return html`<div class="fu">
   boxShadow:"0 12px 30px rgba(15,23,42,.09)",marginBottom:16
 }}>
   ${!flipped?html`<div>
-    <div style=${{fontSize:12,fontWeight:900,color:deck.color,letterSpacing:".1em",textTransform:"uppercase",marginBottom:12}}>${rev?"ANSWER":"QUESTION"}</div>
-    <div style=${rev?{fontSize:16,fontWeight:600,color:"#0f172a",lineHeight:1.65,maxWidth:520,marginBottom:12}:{fontSize:24,fontWeight:900,color:"#0f172a",lineHeight:1.2,marginBottom:12}}>${rev?card.def:card.term}</div>
+    <div style=${{fontSize:12,fontWeight:900,color:deck.color,letterSpacing:".1em",textTransform:"uppercase",marginBottom:12}}>${frontLabel}</div>
+    <div style=${{fontSize:frontText.length>180?19:frontText.length>110?21:24,fontWeight:700,color:"#0f172a",lineHeight:1.45,maxWidth:720,marginBottom:12}}>${frontText}</div>
+    ${isNextUp&&rev&&card.note?html`<div style=${{fontSize:15,fontWeight:800,color:"#64748b",marginTop:10}}>${card.note}</div>`:null}
     <div style=${{fontSize:14,color:"#94a3b8",marginTop:8}}>Tap to reveal ${rev?"the question":"the answer"}</div>
   </div>`:html`<div>
-    <div style=${{fontSize:12,fontWeight:900,color:deck.color,letterSpacing:".1em",textTransform:"uppercase",marginBottom:12}}>${rev?"QUESTION":"ANSWER"}</div>
-    <div style=${rev?{fontSize:24,fontWeight:900,color:"#f8fafc",lineHeight:1.25}:{fontSize:16,fontWeight:600,color:"#e2e8f0",lineHeight:1.65,maxWidth:520}}>${rev?card.term:card.def}</div>
+    <div style=${{fontSize:12,fontWeight:900,color:deck.color,letterSpacing:".1em",textTransform:"uppercase",marginBottom:12}}>${backLabel}</div>
+    <div style=${{fontSize:backText.length>180?19:backText.length>110?21:24,fontWeight:800,color:"#f8fafc",lineHeight:1.45,maxWidth:720}}>${backText}</div>
+    ${isNextUp&&!rev&&card.note?html`<div style=${{fontSize:15,fontWeight:800,color:"#cbd5e1",marginTop:12}}>${card.note}</div>`:null}
   </div>`}
 </div>
 
